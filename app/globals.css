@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette — Hasker & Co. Realty Group */
+  --color-navy:       #0B1F3A;
+  --color-navy-mid:   #0D2550;
+  --color-accent:     #1A56DB;
+  --color-accent-light: #DBEAFE;
+  --color-pale:       #EFF4FF;
+  --color-muted:      #9CA3AF;
+
+  /* Typography */
+  --font-sans:  var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+}
+
+/* Reusable field primitives as @layer utilities */
+@layer utilities {
+  .field-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--color-accent-light) 70%, transparent);
+  }
+
+  /* Underline-only inputs — no box, no nested card */
+  .field-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid color-mix(in srgb, white 15%, transparent);
+    border-radius: 0;
+    padding: 6px 0;
+    font-size: 13px;
+    color: #FFFFFF;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .field-input::placeholder {
+    color: color-mix(in srgb, var(--color-muted) 50%, transparent);
+  }
+
+  .field-input:focus {
+    border-bottom-color: var(--color-accent);
+  }
+}

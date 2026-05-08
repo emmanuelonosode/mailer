@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\emman\\\\Desktop\\\\Mail Sender\" -Force -Recurse)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\emman\\\\Desktop\\\\Mail Sender\" -Force -Recurse | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\emman\\\\Desktop\\\\Mail Sender\" -Force | ForEach-Object { Write-Host \"Type: $\\(if \\($_.PSIsContainer\\) { 'DIR' } else { 'FILE' }\\) - Name: $\\($_.Name\\)\" })",
+      "mcp__claude_ai_Context7__resolve-library-id",
+      "mcp__claude_ai_Context7__query-docs",
+      "Bash(npx create-next-app@latest . --typescript --eslint --app --no-tailwind --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(npm run *)",
+      "WebFetch(domain:haskerrealtygroup.com)"
+    ]
+  }
+}
