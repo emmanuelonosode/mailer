@@ -89,15 +89,15 @@ export default function AnalyticsPanel({ sendLog, contacts, trackingEvents }: An
   const hasTracking = trackingEvents.length > 0;
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 bg-[#0a1929] overflow-y-auto">
-      <div className="px-8 pt-7 pb-5 border-b border-white/8 shrink-0">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#0a1929]">
+      <div className="shrink-0 border-b border-white/8 px-4 pb-5 pt-7 sm:px-6 lg:px-8">
         <h1 className="text-white text-xl font-semibold tracking-tight">Analytics</h1>
         <p className="text-white/35 text-xs mt-0.5">Campaign performance overview</p>
       </div>
 
-      <div className="px-8 py-6 flex flex-col gap-8">
+      <div className="flex flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
         {/* Stat cards */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Total Sent" value={stats.total.toLocaleString()} sub={`${sendLog.filter(e => e.status === "success").length} successful`} />
           <StatCard label="Success Rate" value={`${stats.successRate}%`} sub={`${sendLog.filter(e => e.status === "error").length} failed`} />
           <StatCard label="Contacts" value={contacts.length.toLocaleString()} sub={`${contacts.filter(c => c.tags.includes("Lead")).length} leads`} />
@@ -119,7 +119,7 @@ export default function AnalyticsPanel({ sendLog, contacts, trackingEvents }: An
         </div>
 
         {/* Bottom tables */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           {/* Top subject lines */}
           <div className="bg-white/4 border border-white/8 rounded-xl p-5">
             <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-white/35 mb-4">Top Subject Lines</p>

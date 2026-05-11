@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { AUTH_COOKIE_NAME, getAdminPassword, getExpectedSessionToken } from "@/lib/auth";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Define public routes that should NOT be protected
   const isPublicRoute =
     pathname === "/login" ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/config") ||
     pathname.startsWith("/unsubscribe") ||
     pathname.startsWith("/api/track") ||
     pathname.startsWith("/api/optouts") || // Opt-outs from the unsubscribe page
@@ -18,8 +21,8 @@ export function middleware(request: NextRequest) {
   }
 
   // 2. Check for the admin session cookie
-  const authSession = request.cookies.get("hasker_admin_session")?.value;
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  const authSession = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const adminPassword = getAdminPassword();
 
   // If no password is set in env, we allow access (local dev convenience)
   // But in production, this should always be set.
@@ -27,9 +30,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (authSession !== adminPassword) {
+  const expectedSession = await getExpectedSessionToken();
+
+  if (!authSession || authSession !== expectedSession) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     // Redirect to login if not authenticated
     const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }
 

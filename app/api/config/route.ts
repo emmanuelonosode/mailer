@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
+import { isAuthConfigured } from "@/lib/auth";
 
 export async function GET() {
   const smtpConfigured = !!(
@@ -18,6 +19,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
+    authConfigured: isAuthConfigured(),
     smtpConfigured,
     senderName: smtpConfigured ? (process.env.SENDER_NAME ?? "") : "",
     senderEmail: smtpConfigured ? (process.env.SENDER_EMAIL ?? "") : "",

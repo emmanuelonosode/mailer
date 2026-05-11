@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  AUTH_COOKIE_NAME,
+  createSessionToken,
+  isAuthConfigured,
+  isValidPasswordAttempt,
+} from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   const { password } = await request.json();
-  const adminPassword = process.env.ADMIN_PASSWORD;
 
-  if (!adminPassword) {
-    return NextResponse.json({ error: "Auth not configured" }, { status: 500 });
+  if (!isAuthConfigured()) {
+    return NextResponse.json(
+      { error: "Authentication is not configured. Add ADMIN_PASSWORD to .env.local and restart the server." },
+      { status: 503 },
+    );
   }
 
-  if (password === adminPassword) {
+  if (typeof password === "string" && await isValidPasswordAttempt(password)) {
     const response = NextResponse.json({ success: true });
+    const sessionToken = await createSessionToken(password);
     
-    // Set a simple session cookie
-    response.cookies.set("hasker_admin_session", password, {
+    response.cookies.set(AUTH_COOKIE_NAME, sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { ScheduledSend, SmtpConfig, Contact } from "@/types/email";
+import type { ScheduledSend, Contact } from "@/types/email";
 import { CONTACT_TAGS } from "@/types/email";
 
 interface SchedulerModalProps {
   scheduledSends: ScheduledSend[];
   contacts: Contact[];
-  smtp: SmtpConfig;
   senderName: string;
   senderEmail: string;
   subject: string;
@@ -33,7 +32,7 @@ function timeUntil(iso: string) {
 }
 
 export default function SchedulerModal({
-  scheduledSends, contacts, smtp, senderName, senderEmail,
+  scheduledSends, contacts, senderName, senderEmail,
   subject, htmlBody, onSchedule, onCancel, onClose,
 }: SchedulerModalProps) {
   const [label, setLabel] = useState("");
@@ -69,7 +68,7 @@ export default function SchedulerModal({
       id: crypto.randomUUID(),
       label: label.trim() || subject.slice(0, 40),
       scheduledAt: new Date(scheduledAt).toISOString(),
-      smtp,
+      smtp: { host: "", port: 587, secure: false, user: "", password: "" },
       senderName,
       senderEmail,
       recipients,

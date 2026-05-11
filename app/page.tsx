@@ -41,7 +41,6 @@ interface ConfigData {
 export default function Page() {
   // ── SMTP (Config status from API) ────────────────────────────────────────
   const [smtpConfigured, setSmtpConfigured] = useState(false);
-  const [smtpLoaded, setSmtpLoaded] = useState(false);
 
   // ── Sender ──────────────────────────────────────────────────────────────
   const [senderName, setSenderName] = useState("Hasker & Co. Realty Group");
@@ -68,6 +67,7 @@ export default function Page() {
   const [showScheduler, setShowScheduler] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [toast, setToast] = useState<ToastState>({ type: null, message: "" });
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   // ── Persisted data ───────────────────────────────────────────────────────
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -96,8 +96,6 @@ export default function Page() {
     try { const v = localStorage.getItem("hasker_sequences"); if (v) setSequences(JSON.parse(v)); } catch {}
     try { const v = localStorage.getItem("hasker_enrollments"); if (v) setEnrollments(JSON.parse(v)); } catch {}
     try { const v = localStorage.getItem("hasker_scheduled"); if (v) setScheduledSends(JSON.parse(v)); } catch {}
-    setSmtpLoaded(true);
-
     // Check env SMTP config
     fetch("/api/config")
       .then(r => r.json())
@@ -327,16 +325,15 @@ export default function Page() {
 
   return (
     <>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex min-h-screen flex-col overflow-hidden lg:h-screen lg:flex-row">
         <NavSidebar
           active={activeSection}
           onChange={setActiveSection}
           scheduledCount={pendingScheduled}
-          smtpConfigured={smtpConfigured}
         />
 
         {activeSection === "compose" && (
-          <>
+          <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
             <ControlPanel
               smtpConfigured={smtpConfigured}
               // Sender
@@ -367,9 +364,14 @@ export default function Page() {
               appUrl={appUrl}
               onLogEntry={addLogEntry}
               onShowToast={showToast}
+              mobilePreviewOpen={mobilePreviewOpen}
+              onToggleMobilePreview={() => setMobilePreviewOpen((value) => !value)}
             />
-            <LivePreview wrappedHtml={wrappedHtml} />
-          </>
+            <LivePreview
+              wrappedHtml={wrappedHtml}
+              mobilePreviewOpen={mobilePreviewOpen}
+            />
+          </div>
         )}
 
         {activeSection === "campaigns" && (

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectDB } from "@/lib/mongodb";
+import { ensureDbConnection, getErrorMessage } from "@/lib/api";
 import Contact from "@/lib/models/Contact";
 
 export async function GET(request: NextRequest) {
-  try {
-    await connectDB();
-  } catch (e) {
-    return NextResponse.json([], { headers: { "X-DB-Error": e instanceof Error ? e.message : "DB unavailable" } });
+  const dbError = await ensureDbConnection();
+  if (dbError) {
+    return NextResponse.json([], {
+      status: dbError.status,
+      headers: { "X-DB-Error": "Database unavailable" },
+    });
   }
   const { searchParams } = new URL(request.url);
   const tag = searchParams.get("tag");
@@ -26,12 +28,17 @@ export async function GET(request: NextRequest) {
   }
   if (segment === "bounced") query.bounced = true;
 
-  const contacts = await Contact.find(query).sort({ createdAt: -1 }).lean();
-  return NextResponse.json(contacts);
+  try {
+    const contacts = await Contact.find(query).sort({ createdAt: -1 }).lean();
+    return NextResponse.json(contacts);
+  } catch (error) {
+    return NextResponse.json({ error: getErrorMessage(error, "Failed to load contacts.") }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  await connectDB();
+  const dbError = await ensureDbConnection();
+  if (dbError) return dbError;
   const body = await request.json();
 
   // Bulk import
@@ -55,7 +62,6 @@ export async function POST(request: NextRequest) {
     const contact = await Contact.create(body);
     return NextResponse.json(contact, { status: 201 });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Failed to create contact";
-    return NextResponse.json({ error: msg }, { status: 422 });
+    return NextResponse.json({ error: getErrorMessage(e, "Failed to create contact.") }, { status: 422 });
   }
 }

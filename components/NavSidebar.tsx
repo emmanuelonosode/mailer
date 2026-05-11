@@ -75,9 +75,9 @@ const NAV: Array<{ section: NavSection; label: string; icon: React.ReactNode }> 
 
 export default function NavSidebar({ active, onChange, scheduledCount }: NavSidebarProps) {
   return (
-    <nav className="w-14 shrink-0 bg-navy border-r border-white/8 flex flex-col items-center py-4 gap-1 z-10">
+    <nav className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-white/8 bg-navy px-3 py-3 lg:w-14 lg:flex-col lg:items-center lg:gap-1 lg:overflow-visible lg:border-b-0 lg:border-r lg:px-0 lg:py-4">
       {/* Logo mark */}
-      <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center mb-3 shrink-0">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/20 lg:mb-3">
         <span className="font-serif text-accent text-base font-bold leading-none">H</span>
       </div>
 
@@ -88,7 +88,7 @@ export default function NavSidebar({ active, onChange, scheduledCount }: NavSide
           onClick={() => onChange(section)}
           title={label}
           className={[
-            "relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors group",
+            "group relative flex h-9 min-w-9 items-center justify-center rounded-lg px-2 transition-colors lg:w-9 lg:px-0",
             active === section
               ? "bg-accent text-white"
               : "text-white/30 hover:text-white hover:bg-white/8",
@@ -100,20 +100,20 @@ export default function NavSidebar({ active, onChange, scheduledCount }: NavSide
               {scheduledCount > 9 ? "9+" : scheduledCount}
             </span>
           ) : null}
-          <span className="absolute left-full ml-2 px-2 py-1 rounded bg-black/80 text-white text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+          <span className="hidden absolute left-full ml-2 rounded bg-black/80 px-2 py-1 text-[10px] whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity pointer-events-none z-50 group-hover:opacity-100 lg:block">
             {label}
           </span>
         </button>
       ))}
 
       {/* Settings at bottom */}
-      <div className="mt-auto">
+      <div className="lg:mt-auto">
         <button
           type="button"
           onClick={() => onChange("settings")}
           title="Settings"
           className={[
-            "relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors group",
+            "group relative flex h-9 min-w-9 items-center justify-center rounded-lg px-2 transition-colors lg:w-9 lg:px-0",
             active === "settings"
               ? "bg-accent text-white"
               : "text-white/30 hover:text-white hover:bg-white/8",
@@ -123,7 +123,7 @@ export default function NavSidebar({ active, onChange, scheduledCount }: NavSide
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
-          <span className="absolute left-full ml-2 px-2 py-1 rounded bg-black/80 text-white text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
+          <span className="hidden absolute left-full ml-2 rounded bg-black/80 px-2 py-1 text-[10px] whitespace-nowrap text-white opacity-0 shadow-lg transition-opacity pointer-events-none z-50 group-hover:opacity-100 lg:block">
             Settings
           </span>
         </button>

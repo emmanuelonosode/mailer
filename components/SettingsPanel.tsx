@@ -124,13 +124,13 @@ export default function SettingsPanel({ onAppUrlChange }: SettingsPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      <div className="px-6 py-4 border-b border-white/8 shrink-0">
+    <div className="flex h-full flex-col overflow-y-auto">
+      <div className="shrink-0 border-b border-white/8 px-4 py-4 sm:px-6">
         <h2 className="text-sm font-semibold text-white">Settings</h2>
         <p className="text-[11px] text-white/40 mt-0.5">App configuration and data management</p>
       </div>
 
-      <div className="p-6 space-y-6 max-w-2xl">
+      <div className="max-w-2xl space-y-6 p-4 sm:p-6">
         {/* SMTP Status */}
         <section className="rounded-xl border border-white/8 bg-white/4 p-5">
           <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wide mb-3">SMTP Configuration</h3>
@@ -142,7 +142,7 @@ export default function SettingsPanel({ onAppUrlChange }: SettingsPanelProps) {
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
                 <span className="text-xs text-emerald-400 font-medium">Configured from environment variables</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 mt-3">
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <InfoRow label="Sender Name" value={config.senderName || "—"} />
                 <InfoRow label="Sender Email" value={config.senderEmail || "—"} />
               </div>
@@ -173,7 +173,7 @@ export default function SettingsPanel({ onAppUrlChange }: SettingsPanelProps) {
               {loadingStats ? (
                 <div className="text-white/30 text-xs">Loading stats…</div>
               ) : dbStats && (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                   {[
                     { label: "Contacts", value: dbStats.contacts },
                     { label: "Templates", value: dbStats.templates },
@@ -210,7 +210,7 @@ export default function SettingsPanel({ onAppUrlChange }: SettingsPanelProps) {
           <p className="text-[11px] text-white/30 mb-3">
             Used for tracking pixels and unsubscribe links when <code className="bg-white/8 px-1 rounded">APP_URL</code> env var is not set.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={appUrlOverride}
               onChange={e => setAppUrlOverride(e.target.value)}
