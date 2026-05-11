@@ -126,7 +126,7 @@ export function wrapWithBrandTemplate(bodyHtml: string, subject: string): string
                       color: #9ca3af;
                       margin: 0;">
               &copy; 2025 Hasker &amp; Co. Realty Group. &nbsp;
-              <a href="https://haskerrealtygroup.com/unsubscribe"
+              <a href="{{UNSUB_URL}}"
                  style="color: #9ca3af; text-decoration: underline;">Unsubscribe</a>
             </p>
 
