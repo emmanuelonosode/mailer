@@ -1,18 +1,12 @@
 "use client";
 
-import SmtpFields from "@/components/SmtpFields";
 import SenderFields from "@/components/SenderFields";
 import MessageFields from "@/components/MessageFields";
 import BulkSend from "@/components/BulkSend";
-import type { SmtpConfig, Attachment, SendLogEntry, Contact } from "@/types/email";
+import type { Attachment, SendLogEntry, Contact } from "@/types/email";
 
 interface ControlPanelProps {
-  // SMTP
-  smtpHost: string; onSmtpHostChange: (v: string) => void;
-  smtpPort: number; onSmtpPortChange: (v: number) => void;
-  smtpSecure: boolean; onSmtpSecureChange: (v: boolean) => void;
-  smtpUser: string; onSmtpUserChange: (v: string) => void;
-  smtpPassword: string; onSmtpPasswordChange: (v: string) => void;
+  smtpConfigured: boolean;
   // Sender
   senderName: string; onSenderNameChange: (v: string) => void;
   senderEmail: string; onSenderEmailChange: (v: string) => void;
@@ -87,11 +81,7 @@ function IconButton({
 }
 
 export default function ControlPanel({
-  smtpHost, onSmtpHostChange,
-  smtpPort, onSmtpPortChange,
-  smtpSecure, onSmtpSecureChange,
-  smtpUser, onSmtpUserChange,
-  smtpPassword, onSmtpPasswordChange,
+  smtpConfigured,
   senderName, onSenderNameChange,
   senderEmail, onSenderEmailChange,
   recipient, onRecipientChange,
@@ -110,10 +100,6 @@ export default function ControlPanel({
   contacts, optOuts, appUrl,
   onLogEntry, onShowToast,
 }: ControlPanelProps) {
-  const smtp: SmtpConfig = {
-    host: smtpHost, port: smtpPort, secure: smtpSecure,
-    user: smtpUser, password: smtpPassword,
-  };
 
   return (
     <aside className="flex flex-col h-full bg-navy border-r border-white/8 overflow-hidden">
@@ -180,23 +166,16 @@ export default function ControlPanel({
       {/* Scrollable form */}
       <div className="flex flex-col flex-1 min-h-0 overflow-y-auto px-5 pt-5 pb-2 gap-5">
 
-        {/* SMTP */}
-        <section>
-          <SectionHeading title="SMTP" />
-          <SmtpFields
-            host={smtpHost} onHostChange={onSmtpHostChange}
-            port={smtpPort} onPortChange={onSmtpPortChange}
-            secure={smtpSecure} onSecureChange={onSmtpSecureChange}
-            user={smtpUser} onUserChange={onSmtpUserChange}
-            password={smtpPassword} onPasswordChange={onSmtpPasswordChange}
-          />
-        </section>
-
-        <div className="h-px bg-white/6" />
-
         {/* Sender */}
         <section>
-          <SectionHeading title="Sender" />
+          <div className="flex items-center justify-between mb-3">
+            <SectionHeading title="Sender" />
+            {smtpConfigured && (
+              <span className="text-[9px] font-bold bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full border border-green-500/20">
+                SMTP ACTIVE
+              </span>
+            )}
+          </div>
           <SenderFields
             senderName={senderName} onSenderNameChange={onSenderNameChange}
             senderEmail={senderEmail} onSenderEmailChange={onSenderEmailChange}
@@ -280,7 +259,6 @@ export default function ControlPanel({
               </div>
 
               <BulkSend
-                smtp={smtp}
                 senderName={senderName}
                 senderEmail={senderEmail}
                 subject={subject}

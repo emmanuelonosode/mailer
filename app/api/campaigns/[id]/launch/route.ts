@@ -20,21 +20,18 @@ export async function POST(
   if (campaign.status === "sent") return NextResponse.json({ error: "Already sent" }, { status: 409 });
 
   const body = await request.json().catch(() => ({}));
-  const smtpOverride = body.smtp;
 
-  // Build SMTP config from env (preferred) or request body
-  const smtp = process.env.SMTP_HOST?.trim()
-    ? {
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT ?? "587"),
-        secure: process.env.SMTP_SECURE === "true",
-        user: process.env.SMTP_USER ?? "",
-        password: process.env.SMTP_PASSWORD ?? "",
-      }
-    : smtpOverride;
+  // Build SMTP config strictly from env
+  const smtp = {
+    host: process.env.SMTP_HOST!,
+    port: parseInt(process.env.SMTP_PORT ?? "587"),
+    secure: process.env.SMTP_SECURE === "true",
+    user: process.env.SMTP_USER!,
+    password: process.env.SMTP_PASSWORD!,
+  };
 
-  if (!smtp?.host) {
-    return NextResponse.json({ error: "SMTP not configured. Set env vars or pass smtp in body." }, { status: 400 });
+  if (!smtp.host || !smtp.user || !smtp.password) {
+    return NextResponse.json({ error: "SMTP not configured on the server." }, { status: 500 });
   }
 
   const senderName = process.env.SENDER_NAME ?? body.senderName ?? "Hasker & Co. Realty Group";
@@ -67,47 +64,57 @@ export async function POST(
   // Shuffle for A/B split
   const shuffled = [...contacts].sort(() => Math.random() - 0.5);
 
-  for (let i = 0; i < shuffled.length; i++) {
-    const contact = shuffled[i];
-    const email = contact.email.toLowerCase();
+  const CONCURRENCY = 5;
+  for (let i = 0; i < shuffled.length; i += CONCURRENCY) {
+    const chunk = shuffled.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      chunk.map(async (contact, indexInChunk) => {
+        const globalIndex = i + indexInChunk;
+        const email = contact.email.toLowerCase();
 
-    if (optOuts.has(email)) {
-      skipped++;
-      await SendLog.create({ campaignId: id, to: email, subject: campaign.subject, status: "skipped" });
-      continue;
-    }
+        if (optOuts.has(email)) {
+          skipped++;
+          await SendLog.create({ campaignId: id, to: email, subject: campaign.subject, status: "skipped" });
+          return;
+        }
 
-    const variant: "a" | "b" | undefined = campaign.abTest
-      ? i < shuffled.length / 2 ? "a" : "b"
-      : undefined;
+        const variant: "a" | "b" | undefined = campaign.abTest
+          ? globalIndex < shuffled.length / 2 ? "a" : "b"
+          : undefined;
 
-    const subject = variant === "b" && campaign.subjectB ? campaign.subjectB : campaign.subject;
-    const sendId = `${id}-${email}-${Date.now()}`;
-    const unsubUrl = `${origin}/unsubscribe?email=${encodeURIComponent(email)}`;
-    const html = injectTracking(campaign.html, sendId, email, origin);
+        const subject = variant === "b" && campaign.subjectB ? campaign.subjectB : campaign.subject;
+        const sendId = `${id}-${email}-${Date.now()}`;
+        const unsubUrl = `${origin}/unsubscribe?email=${encodeURIComponent(email)}`;
 
-    try {
-      const { messageId } = await sendEmail({
-        smtp,
-        from,
-        to: email,
-        subject,
-        html,
-        text: convertToPlainText(html),
-        listUnsubscribeUrl: unsubUrl,
-        isBulk: true,
-      });
-      sent++;
-      await SendLog.create({ campaignId: id, to: email, subject, status: "sent", messageId, variant });
-    } catch (e) {
-      failed++;
-      const errMsg = e instanceof Error ? e.message : "Unknown error";
-      const isBounce = errMsg.includes("550") || errMsg.includes("551") || errMsg.includes("553");
-      if (isBounce) {
-        await Contact.findOneAndUpdate({ email }, { $addToSet: { tags: "Bounced" }, bounced: true });
-      }
-      await SendLog.create({ campaignId: id, to: email, subject, status: "failed", error: errMsg, bounced: isBounce, variant });
-    }
+        // 1. Replace placeholder if it exists
+        let processedHtml = campaign.html.replace(/{{UNSUB_URL}}/g, unsubUrl);
+        // 2. Inject tracking with CID
+        processedHtml = injectTracking(processedHtml, sendId, email, origin, id);
+
+        try {
+          const { messageId } = await sendEmail({
+            smtp,
+            from,
+            to: email,
+            subject,
+            html: processedHtml,
+            text: convertToPlainText(processedHtml),
+            listUnsubscribeUrl: unsubUrl,
+            isBulk: true,
+          });
+          sent++;
+          await SendLog.create({ campaignId: id, to: email, subject, status: "sent", messageId, variant });
+        } catch (e) {
+          failed++;
+          const errMsg = e instanceof Error ? e.message : "Unknown error";
+          const isBounce = errMsg.includes("550") || errMsg.includes("551") || errMsg.includes("553");
+          if (isBounce) {
+            await Contact.findOneAndUpdate({ email }, { $addToSet: { tags: "Bounced" }, bounced: true });
+          }
+          await SendLog.create({ campaignId: id, to: email, subject, status: "failed", error: errMsg, bounced: isBounce, variant });
+        }
+      })
+    );
   }
 
   await Campaign.findByIdAndUpdate(id, {

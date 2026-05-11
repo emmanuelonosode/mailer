@@ -17,6 +17,11 @@ export const metadata: Metadata = {
   description: "Internal email marketing tool for Hasker & Co. Realty Group",
 };
 
+import { validateEnv } from "@/lib/env";
+
+// Validate env vars on startup
+validateEnv();
+
 export default function RootLayout({
   children,
 }: {

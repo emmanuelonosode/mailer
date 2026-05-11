@@ -29,8 +29,9 @@ export async function sendEmail(options: MailOptions): Promise<{ messageId: stri
     tls: { rejectUnauthorized: false },
   });
 
-  const unsubUrl = options.listUnsubscribeUrl ?? "https://haskerrealtygroup.com/unsubscribe";
-  const msgId = `<${crypto.randomUUID()}@haskerrealtygroup.com>`;
+  const domain = options.from.split("@")[1]?.replace(">", "") || "haskerrealtygroup.com";
+  const unsubUrl = options.listUnsubscribeUrl ?? `https://${domain}/unsubscribe`;
+  const msgId = `<${crypto.randomUUID()}@${domain}>`;
   const dateStr = new Date().toUTCString();
 
   const info = await transporter.sendMail({
@@ -55,15 +56,15 @@ export async function sendEmail(options: MailOptions): Promise<{ messageId: stri
       "X-Campaign-Source": "hasker-email-platform",
 
       // Spam compliance — RFC 2369 List-Unsubscribe
-      "List-Unsubscribe": `<${unsubUrl}>, <mailto:unsubscribe@haskerrealtygroup.com?subject=unsubscribe>`,
+      "List-Unsubscribe": `<${unsubUrl}>, <mailto:unsubscribe@${domain}?subject=unsubscribe>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
 
       // Bulk/marketing classification (reduces spam score when set properly)
       ...(options.isBulk && { "Precedence": "bulk" }),
 
       // Help mail clients identify the sending organization
-      "List-Id": "Hasker & Co. Realty Group <newsletter.haskerrealtygroup.com>",
-      "List-Owner": "<mailto:info@haskerrealtygroup.com>",
+      "List-Id": `Hasker & Co. Realty Group <newsletter.${domain}>`,
+      "List-Owner": `<mailto:info@${domain}>`,
       "Sender": options.from,
 
       // MIME compliance

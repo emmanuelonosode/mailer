@@ -39,14 +39,9 @@ interface ConfigData {
 }
 
 export default function Page() {
-  // ── SMTP (from env or UI) ────────────────────────────────────────────────
-  const [smtpHost, setSmtpHost] = useState("");
-  const [smtpPort, setSmtpPort] = useState(587);
-  const [smtpSecure, setSmtpSecure] = useState(false);
-  const [smtpUser, setSmtpUser] = useState("");
-  const [smtpPassword, setSmtpPassword] = useState("");
+  // ── SMTP (Config status from API) ────────────────────────────────────────
+  const [smtpConfigured, setSmtpConfigured] = useState(false);
   const [smtpLoaded, setSmtpLoaded] = useState(false);
-  const [smtpConfigured, setSmtpConfigured] = useState(false); // from env
 
   // ── Sender ──────────────────────────────────────────────────────────────
   const [senderName, setSenderName] = useState("Hasker & Co. Realty Group");
@@ -95,19 +90,6 @@ export default function Page() {
 
   // ── Load from API + localStorage on mount ────────────────────────────────
   useEffect(() => {
-    // Load SMTP from localStorage (only used when env not configured)
-    try {
-      const s = localStorage.getItem("hasker_smtp");
-      if (s) {
-        const { host, port, secure, user, password } = JSON.parse(s) as Record<string, unknown>;
-        if (typeof host === "string" && host) setSmtpHost(host);
-        if (typeof port === "number" && port) setSmtpPort(port);
-        if (typeof secure === "boolean") setSmtpSecure(secure);
-        if (typeof user === "string" && user) setSmtpUser(user);
-        if (typeof password === "string" && password) setSmtpPassword(password);
-      }
-    } catch {}
-
     // Load templates from localStorage
     try { const v = localStorage.getItem("hasker_templates"); if (v) setTemplates(JSON.parse(v)); } catch {}
     try { const v = localStorage.getItem("hasker_sendlog"); if (v) setSendLog(JSON.parse(v)); } catch {}
@@ -152,12 +134,6 @@ export default function Page() {
       .catch(() => {});
   }, []);
 
-  // ── Persist SMTP to localStorage (fallback when env not set) ─────────────
-  useEffect(() => {
-    if (!smtpLoaded || smtpConfigured) return;
-    try { localStorage.setItem("hasker_smtp", JSON.stringify({ host: smtpHost, port: smtpPort, secure: smtpSecure, user: smtpUser, password: smtpPassword })); } catch {}
-  }, [smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword, smtpLoaded, smtpConfigured]);
-
   useEffect(() => { try { localStorage.setItem("hasker_templates", JSON.stringify(templates)); } catch {} }, [templates]);
   useEffect(() => { try { localStorage.setItem("hasker_sendlog", JSON.stringify(sendLog.slice(0, 500))); } catch {} }, [sendLog]);
   useEffect(() => { try { localStorage.setItem("hasker_sequences", JSON.stringify(sequences)); } catch {} }, [sequences]);
@@ -174,10 +150,6 @@ export default function Page() {
 
   // ── Auto-fire scheduled sends ────────────────────────────────────────────
   const schedulerRef = useRef<NodeJS.Timeout | null>(null);
-  const smtpRef = useRef({ host: smtpHost, port: smtpPort, secure: smtpSecure, user: smtpUser, password: smtpPassword, senderName, senderEmail });
-  useEffect(() => {
-    smtpRef.current = { host: smtpHost, port: smtpPort, secure: smtpSecure, user: smtpUser, password: smtpPassword, senderName, senderEmail };
-  }, [smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword, senderName, senderEmail]);
 
   useEffect(() => {
     async function checkScheduled() {
@@ -196,7 +168,7 @@ export default function Page() {
             const res = await fetch("/api/send-email", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ smtp: s.smtp, senderName: s.senderName, senderEmail: s.senderEmail, recipientEmail: r.email, subject: s.subject, htmlBody: html }),
+              body: JSON.stringify({ senderName: s.senderName, senderEmail: s.senderEmail, recipientEmail: r.email, subject: s.subject, htmlBody: html }),
             });
             const data = await res.json();
             addLogEntry({ id: sendId, timestamp: new Date().toISOString(), to: r.email, subject: s.subject, status: data.success ? "success" : "error", ...(!data.success && { error: data.error }) });
@@ -289,12 +261,6 @@ export default function Page() {
   // ── Validate + send ──────────────────────────────────────────────────────
   function validateClient(recipientOverride?: string): string | null {
     const eff = recipientOverride ?? recipient;
-    if (!smtpConfigured) {
-      if (!smtpHost.trim()) return "SMTP Host is required.";
-      if (!smtpUser.trim()) return "SMTP Username is required.";
-      if (!smtpPassword.trim()) return "SMTP Password is required.";
-      if (smtpPort < 1 || smtpPort > 65535) return "SMTP Port must be between 1 and 65535.";
-    }
     if (!senderEmail.trim()) return "Sender Email is required.";
     if (!isValidEmail(senderEmail)) return "Sender Email is not valid.";
     if (!eff.trim()) return "Recipient Email is required.";
@@ -317,7 +283,7 @@ export default function Page() {
       if (appUrl) finalHtml = injectTracking(finalHtml, sendId, effectiveRecipient, appUrl);
 
       const payload: SendEmailPayload = {
-        smtp: smtpConfigured ? { host: "", port: 587, secure: false, user: "", password: "" } : { host: smtpHost, port: smtpPort, secure: smtpSecure, user: smtpUser, password: smtpPassword },
+        smtp: { host: "", port: 587, secure: false, user: "", password: "" },
         senderName, senderEmail, recipientEmail: effectiveRecipient,
         ...(cc.trim() && { cc }),
         ...(bcc.trim() && { bcc }),
@@ -358,7 +324,6 @@ export default function Page() {
   }
 
   const pendingScheduled = scheduledSends.filter(s => s.status === "pending").length;
-  const smtp = { host: smtpHost, port: smtpPort, secure: smtpSecure, user: smtpUser, password: smtpPassword };
 
   return (
     <>
@@ -372,18 +337,9 @@ export default function Page() {
 
         {activeSection === "compose" && (
           <>
-            {smtpConfigured && (
-              <div className="absolute top-3 left-16 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[10px] font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                SMTP configured from environment
-              </div>
-            )}
             <ControlPanel
-              smtpHost={smtpHost} onSmtpHostChange={setSmtpHost}
-              smtpPort={smtpPort} onSmtpPortChange={setSmtpPort}
-              smtpSecure={smtpSecure} onSmtpSecureChange={setSmtpSecure}
-              smtpUser={smtpUser} onSmtpUserChange={setSmtpUser}
-              smtpPassword={smtpPassword} onSmtpPasswordChange={setSmtpPassword}
+              smtpConfigured={smtpConfigured}
+              // Sender
               senderName={senderName} onSenderNameChange={setSenderName}
               senderEmail={senderEmail} onSenderEmailChange={setSenderEmail}
               recipient={recipient} onRecipientChange={setRecipient}
@@ -419,8 +375,6 @@ export default function Page() {
         {activeSection === "campaigns" && (
           <CampaignPanel
             contacts={contacts}
-            smtp={smtpConfigured ? null : smtp}
-            smtpConfigured={smtpConfigured}
             senderEmail={senderEmail}
             senderName={senderName}
           />
@@ -446,7 +400,6 @@ export default function Page() {
           <ListingsPanel
             contacts={contacts}
             optOuts={optOuts}
-            smtp={smtp}
             senderName={senderName}
             senderEmail={senderEmail}
             appUrl={appUrl}
@@ -461,7 +414,6 @@ export default function Page() {
             enrollments={enrollments}
             contacts={contacts}
             optOuts={optOuts}
-            smtp={smtp}
             senderName={senderName}
             senderEmail={senderEmail}
             appUrl={appUrl}
@@ -533,6 +485,20 @@ export default function Page() {
       {showScheduler && (
         <SchedulerModal
           scheduledSends={scheduledSends}
+          contacts={contacts}
+          senderName={senderName}
+          senderEmail={senderEmail}
+          subject={subject}
+          htmlBody={htmlBody}
+          onSchedule={handleSchedule}
+          onCancel={handleCancelScheduled}
+          onClose={() => setShowScheduler(false)}
+        />
+      )}
+    </>
+  );
+}
+s={scheduledSends}
           contacts={contacts}
           smtp={smtp}
           senderName={senderName}

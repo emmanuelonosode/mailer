@@ -36,13 +36,11 @@ const CONTACT_TAGS = ["Buyer", "Renter", "Investor", "Lead", "Past Client", "All
 
 interface CampaignPanelProps {
   contacts: Contact[];
-  smtp?: { host: string; port: number; secure: boolean; user: string; password: string } | null;
-  smtpConfigured: boolean;
   senderEmail?: string;
   senderName?: string;
 }
 
-export default function CampaignPanel({ contacts, smtp, smtpConfigured, senderEmail, senderName }: CampaignPanelProps) {
+export default function CampaignPanel({ contacts, senderEmail, senderName }: CampaignPanelProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -136,13 +134,9 @@ export default function CampaignPanel({ contacts, smtp, smtpConfigured, senderEm
   }
 
   async function launchCampaign(campaign: Campaign) {
-    if (!smtpConfigured && !smtp?.host) {
-      showToast("Configure SMTP before launching.", false);
-      return;
-    }
     if (!confirm(`Launch "${campaign.name}" to ${getSegmentLabel(campaign)} contacts?`)) return;
     setLaunching(campaign._id);
-    const body = smtpConfigured ? {} : { smtp, senderEmail, senderName };
+    const body = { senderEmail, senderName };
     const res = await fetch(`/api/campaigns/${campaign._id}/launch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -422,4 +416,6 @@ export default function CampaignPanel({ contacts, smtp, smtpConfigured, senderEm
       )}
     </div>
   );
+}
+;
 }

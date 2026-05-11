@@ -107,7 +107,6 @@ export default function BulkSend({
     if (recipients.length === 0) { onShowToast("error", "Add at least one recipient first."); return; }
     if (!subject.trim()) { onShowToast("error", "Subject line is required."); return; }
     if (!rawHtmlBody.trim()) { onShowToast("error", "Email body cannot be empty."); return; }
-    if (!smtp.host.trim() || !smtp.user.trim() || !smtp.password.trim()) { onShowToast("error", "Fill in SMTP settings before sending."); return; }
     if (!senderEmail.trim()) { onShowToast("error", "Sender Email is required."); return; }
 
     setIsSending(true);
@@ -140,7 +139,7 @@ export default function BulkSend({
         const res = await fetch("/api/send-email", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ smtp, senderName, senderEmail, recipientEmail: r.email, subject: personalizedSubject, htmlBody: wrappedHtml }),
+          body: JSON.stringify({ senderName, senderEmail, recipientEmail: r.email, subject: personalizedSubject, htmlBody: wrappedHtml }),
         });
         const data = await res.json();
 

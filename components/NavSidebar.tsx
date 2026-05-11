@@ -6,7 +6,6 @@ interface NavSidebarProps {
   active: NavSection;
   onChange: (s: NavSection) => void;
   scheduledCount?: number;
-  smtpConfigured?: boolean;
 }
 
 const NAV: Array<{ section: NavSection; label: string; icon: React.ReactNode }> = [
@@ -74,7 +73,7 @@ const NAV: Array<{ section: NavSection; label: string; icon: React.ReactNode }> 
   },
 ];
 
-export default function NavSidebar({ active, onChange, scheduledCount, smtpConfigured }: NavSidebarProps) {
+export default function NavSidebar({ active, onChange, scheduledCount }: NavSidebarProps) {
   return (
     <nav className="w-14 shrink-0 bg-navy border-r border-white/8 flex flex-col items-center py-4 gap-1 z-10">
       {/* Logo mark */}
@@ -100,9 +99,6 @@ export default function NavSidebar({ active, onChange, scheduledCount, smtpConfi
             <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-400 text-black text-[8px] flex items-center justify-center font-bold">
               {scheduledCount > 9 ? "9+" : scheduledCount}
             </span>
-          ) : null}
-          {section === "compose" && smtpConfigured ? (
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-navy" title="SMTP configured" />
           ) : null}
           <span className="absolute left-full ml-2 px-2 py-1 rounded bg-black/80 text-white text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-lg">
             {label}

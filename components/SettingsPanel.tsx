@@ -115,7 +115,7 @@ export default function SettingsPanel({ onAppUrlChange }: SettingsPanelProps) {
   }
 
   function clearLocalStorage() {
-    if (!confirm("Clear all locally cached data (SMTP session, localStorage)? MongoDB data is NOT affected.")) return;
+    if (!confirm("Clear all locally cached data (templates, logs, sequences)? MongoDB data is NOT affected.")) return;
     const keysToKeep = ["hasker_app_url"];
     Object.keys(localStorage).forEach(key => {
       if (!keysToKeep.includes(key)) localStorage.removeItem(key);

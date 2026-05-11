@@ -69,14 +69,7 @@ function envSmtp() {
   };
 }
 
-function validateFields(body: Partial<SendEmailPayload>, smtpFromEnv: boolean): string | null {
-  if (!smtpFromEnv) {
-    if (!body.smtp?.host?.trim()) return "SMTP Host is required.";
-    if (!body.smtp?.user?.trim()) return "SMTP Username is required.";
-    if (!body.smtp?.password?.trim()) return "SMTP Password is required.";
-    if (!body.smtp?.port || body.smtp.port < 1 || body.smtp.port > 65535)
-      return "SMTP Port must be between 1 and 65535.";
-  }
+function validateFields(body: Partial<SendEmailPayload>): string | null {
   if (!body.senderEmail?.trim() && !process.env.SENDER_EMAIL?.trim())
     return "Sender Email is required.";
   const senderEmail = body.senderEmail?.trim() || process.env.SENDER_EMAIL?.trim() || "";
@@ -101,10 +94,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const smtpEnv = envSmtp();
-  const smtp = smtpEnv ?? body.smtp;
+  const smtp = envSmtp();
+  if (!smtp) {
+    return NextResponse.json<SendEmailResponse>(
+      { success: false, error: "SMTP is not configured on the server." },
+      { status: 500 }
+    );
+  }
 
-  const validationError = validateFields(body, !!smtpEnv);
+  const validationError = validateFields(body);
   if (validationError) {
     return NextResponse.json<SendEmailResponse>({ success: false, error: validationError }, { status: 400 });
   }
