@@ -498,18 +498,3 @@ export default function Page() {
     </>
   );
 }
-s={scheduledSends}
-          contacts={contacts}
-          smtp={smtp}
-          senderName={senderName}
-          senderEmail={senderEmail}
-          subject={subject}
-          htmlBody={htmlBody}
-          onSchedule={handleSchedule}
-          onCancel={handleCancelScheduled}
-          onClose={() => setShowScheduler(false)}
-        />
-      )}
-    </>
-  );
-}

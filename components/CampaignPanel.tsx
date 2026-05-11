@@ -417,5 +417,3 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
     </div>
   );
 }
-;
-}

@@ -25,7 +25,6 @@ export async function connectDB(): Promise<typeof mongoose> {
   }
 
   cached.promise = mongoose.connect(process.env.MONGODB_URI, {
-    bufferCommands: false,
     dbName: "hasker-mail",
     serverSelectionTimeoutMS: 8000,
     connectTimeoutMS: 8000,
