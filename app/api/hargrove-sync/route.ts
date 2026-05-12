@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureDbConnection } from "@/lib/api";
 import Contact from "@/lib/models/Contact";
 
-const HARGROVE_API_URL = "https://api.haskerrealtygroup.com";
+const HARGROVE_API_URL = "https://admin.haskerrealtygroup.com";
 const HARGROVE_SYNC_KEY = "hsk_sync_secret_change_me_in_production";
 
 interface HargroveContact {
