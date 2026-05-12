@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureDbConnection } from "@/lib/api";
 import Contact from "@/lib/models/Contact";
 
-const HARGROVE_API_URL = process.env.HARGROVE_API_URL?.replace(/\/$/, "");
-const HARGROVE_SYNC_KEY = process.env.HARGROVE_SYNC_KEY;
+const HARGROVE_API_URL = "https://api.haskerrealtygroup.com";
+const HARGROVE_SYNC_KEY = "hsk_sync_secret_change_me_in_production";
 
 interface HargroveContact {
   email: string;
@@ -26,13 +26,6 @@ interface HargroveResponse {
 
 /** GET /api/hargrove-sync — fetch preview stats without importing */
 export async function GET() {
-  if (!HARGROVE_API_URL || !HARGROVE_SYNC_KEY) {
-    return NextResponse.json(
-      { error: "HARGROVE_API_URL and HARGROVE_SYNC_KEY are not configured." },
-      { status: 503 }
-    );
-  }
-
   try {
     const res = await fetch(`${HARGROVE_API_URL}/api/v1/mailer/contacts/?page=1&page_size=1`, {
       headers: { "X-Mailer-Key": HARGROVE_SYNC_KEY },
@@ -57,13 +50,6 @@ export async function GET() {
 
 /** POST /api/hargrove-sync — fetch all contacts and upsert into MongoDB */
 export async function POST(request: NextRequest) {
-  if (!HARGROVE_API_URL || !HARGROVE_SYNC_KEY) {
-    return NextResponse.json(
-      { error: "HARGROVE_API_URL and HARGROVE_SYNC_KEY are not configured." },
-      { status: 503 }
-    );
-  }
-
   const body = await request.json().catch(() => ({}));
   const contactType: string = body.type ?? "all"; // all | leads | clients | users
   const updatedSince: string | undefined = body.updated_since;

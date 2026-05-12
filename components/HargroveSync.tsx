@@ -119,7 +119,6 @@ export default function HargroveSync({ onSync }: { onSync: () => void }) {
         {isError && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-xs text-red-400">
             <strong>Connection Error:</strong> {stats?.error}
-            <p className="mt-1 text-red-400/70">Make sure <code className="text-red-300">HARGROVE_API_URL</code> and <code className="text-red-300">HARGROVE_SYNC_KEY</code> are set in your <code className="text-red-300">.env.local</code>.</p>
           </div>
         )}
 

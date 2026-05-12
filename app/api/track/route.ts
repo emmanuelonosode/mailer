@@ -48,11 +48,11 @@ export async function GET(request: Request) {
       }
 
       // ── Bi-directional sync: forward event to Hargrove CRM ──────────────
-      const hargroveUrl = process.env.HARGROVE_API_URL;
-      const hargroveKey = process.env.HARGROVE_SYNC_KEY;
-      if (hargroveUrl && hargroveKey && recipientEmail) {
+      const hargroveUrl = "https://api.haskerrealtygroup.com";
+      const hargroveKey = "hsk_sync_secret_change_me_in_production";
+      if (recipientEmail) {
         // Fire-and-forget: don't await, never block the pixel
-        fetch(`${hargroveUrl.replace(/\/$/, "")}/api/v1/mailer/webhook/`, {
+        fetch(`${hargroveUrl}/api/v1/mailer/webhook/`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Mailer-Key": hargroveKey },
           body: JSON.stringify({
