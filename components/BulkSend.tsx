@@ -259,6 +259,36 @@ export default function BulkSend({
               );
             })}
           </div>
+
+          <div className="mt-4">
+            <label className="field-label">Or select specific contacts</label>
+            <div className="mt-1.5 max-h-32 overflow-y-auto rounded border border-white/10 bg-black/20 p-1 custom-scrollbar">
+              {contacts.length === 0 && (
+                <p className="text-[10px] text-white/30 p-2 text-center">No contacts available.</p>
+              )}
+              {contacts.map(c => {
+                if (c.unsubscribed || optOuts.includes(c.email.toLowerCase())) return null;
+                const isAlreadyAdded = recipients.some(r => r.email.toLowerCase() === c.email.toLowerCase());
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      if (isAlreadyAdded) {
+                        setRecipients(prev => prev.filter(r => r.email.toLowerCase() !== c.email.toLowerCase()));
+                      } else {
+                        addRecipients([{ name: c.name, email: c.email }]);
+                      }
+                    }}
+                    className={`w-full text-left flex items-center justify-between px-2 py-1.5 rounded text-[11px] transition-colors ${isAlreadyAdded ? "bg-accent/20 text-accent-light" : "text-white/60 hover:bg-white/5 hover:text-white"}`}
+                  >
+                    <span className="truncate pr-2">{c.name} ({c.email})</span>
+                    {isAlreadyAdded && <span className="text-[10px]">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 

@@ -186,6 +186,7 @@ export default function ListingsPanel({
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
   const [hasSearched, setHasSearched] = useState(false);
   const [segment, setSegment] = useState("All");
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [customSubject, setCustomSubject] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ sent: number; total: number } | null>(null);
@@ -286,6 +287,13 @@ export default function ListingsPanel({
 
   const recipients = contacts.filter((contact) => {
     if (contact.unsubscribed || optOuts.includes(contact.email.toLowerCase())) return false;
+    
+    // If specific contacts are selected, ONLY send to them
+    if (selectedContactIds.size > 0) {
+      return selectedContactIds.has(contact.id);
+    }
+    
+    // Otherwise fallback to segment logic
     return segment === "All" || contact.tags.includes(segment);
   });
 
@@ -537,10 +545,10 @@ export default function ListingsPanel({
                   return (
                     <button
                       key={tag}
-                      onClick={() => setSegment(tag)}
+                      onClick={() => { setSegment(tag); setSelectedContactIds(new Set()); }}
                       className={[
                         "rounded-full border px-2 py-1 text-[10px] transition-colors",
-                        segment === tag
+                        segment === tag && selectedContactIds.size === 0
                           ? "border-accent bg-accent/20 text-accent-light"
                           : "border-white/12 text-white/35 hover:text-white",
                       ].join(" ")}
@@ -550,8 +558,42 @@ export default function ListingsPanel({
                   );
                 })}
               </div>
+
+              <div className="mt-4">
+                <label className="field-label flex justify-between">
+                  <span>Or Select Specific Users</span>
+                  {selectedContactIds.size > 0 && (
+                    <button onClick={() => setSelectedContactIds(new Set())} className="text-accent hover:text-accent-light text-[10px]">Clear</button>
+                  )}
+                </label>
+                <div className="mt-1.5 max-h-32 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-1 custom-scrollbar">
+                  {contacts.length === 0 && (
+                    <p className="text-[10px] text-white/30 p-2">No contacts yet.</p>
+                  )}
+                  {contacts.map(c => {
+                    if (c.unsubscribed || optOuts.includes(c.email.toLowerCase())) return null;
+                    const isSelected = selectedContactIds.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          const next = new Set(selectedContactIds);
+                          if (isSelected) next.delete(c.id);
+                          else next.add(c.id);
+                          setSelectedContactIds(next);
+                        }}
+                        className={`w-full text-left flex items-center justify-between px-2 py-1.5 rounded text-[11px] transition-colors ${isSelected ? "bg-accent/20 text-accent-light" : "text-white/60 hover:bg-white/5 hover:text-white"}`}
+                      >
+                        <span className="truncate pr-2">{c.name} ({c.email})</span>
+                        {isSelected && <span className="text-[10px]">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {recipients.length === 0 && contacts.length > 0 && (
-                <p className="mt-2 text-[10px] text-amber-400/70">No eligible contacts in this segment.</p>
+                <p className="mt-2 text-[10px] text-amber-400/70">No eligible contacts in this selection.</p>
               )}
               {contacts.length === 0 && (
                 <p className="mt-2 text-[10px] text-white/30">No contacts yet. Add some in the Contacts tab.</p>

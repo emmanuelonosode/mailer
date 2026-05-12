@@ -6,6 +6,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
+import { useState } from "react";
 
 interface RichEditorProps {
   initialValue?: string;
@@ -65,6 +66,8 @@ export default function RichEditor({ initialValue = "", onChange }: RichEditorPr
     },
   });
 
+  const [showVars, setShowVars] = useState(false);
+
   if (!editor) return null;
 
   function setLink() {
@@ -122,6 +125,28 @@ export default function RichEditor({ initialValue = "", onChange }: RichEditorPr
         <Btn title="Remove link" onClick={() => editor.chain().focus().unsetLink().run()}>
           Unlink
         </Btn>
+        <Divider />
+        <div className="relative">
+          <Btn title="Insert Personalization Variable" onClick={() => setShowVars(!showVars)}>
+            {'{ }'} Variables
+          </Btn>
+          {showVars && (
+            <div className="absolute top-full right-0 mt-1 w-32 bg-navy border border-white/10 rounded shadow-xl z-50 overflow-hidden text-xs">
+              <button 
+                onClick={() => { editor.chain().focus().insertContent('{{first_name}}').run(); setShowVars(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 text-white/80 transition-colors"
+              >First Name</button>
+              <button 
+                onClick={() => { editor.chain().focus().insertContent('{{name}}').run(); setShowVars(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 text-white/80 transition-colors"
+              >Full Name</button>
+              <button 
+                onClick={() => { editor.chain().focus().insertContent('{{email}}').run(); setShowVars(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-white/10 text-white/80 transition-colors"
+              >Email Address</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Editor content area */}

@@ -55,6 +55,7 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
   const [subjectB, setSubjectB] = useState("");
   const [html, setHtml] = useState("");
   const [segmentTag, setSegmentTag] = useState("All Contacts");
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [abTest, setAbTest] = useState(false);
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpDays, setFollowUpDays] = useState(3);
@@ -81,7 +82,7 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
   function openCreate() {
     setEditCampaign(null);
     setName(""); setSubject(""); setSubjectB(""); setHtml("");
-    setSegmentTag("All Contacts"); setAbTest(false);
+    setSegmentTag("All Contacts"); setSelectedContactIds(new Set()); setAbTest(false);
     setFollowUpEnabled(false); setFollowUpDays(3); setFollowUpSubject("");
     setShowForm(true);
   }
@@ -90,6 +91,17 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
     setEditCampaign(c);
     setName(c.name); setSubject(c.subject); setSubjectB(c.subjectB ?? "");
     setHtml(c.html); setSegmentTag(c.segmentTag ?? "All Contacts");
+    // Pre-populate specific contacts if segment array has emails
+    if (c.segment && c.segment.length > 0 && !c.segmentTag) {
+      const selectedIds = new Set<string>();
+      c.segment.forEach(email => {
+        const match = contacts.find(contact => contact.email === email);
+        if (match) selectedIds.add(match.id);
+      });
+      setSelectedContactIds(selectedIds);
+    } else {
+      setSelectedContactIds(new Set());
+    }
     setAbTest(c.abTest); setFollowUpEnabled(c.followUpEnabled);
     setFollowUpDays(c.followUpDays ?? 3); setFollowUpSubject(c.followUpSubject ?? "");
     setShowForm(true);
@@ -106,8 +118,10 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
       subject: subject.trim(),
       subjectB: abTest ? subjectB.trim() : undefined,
       html,
-      segmentTag: segmentTag === "All Contacts" ? undefined : segmentTag,
-      segment: [] as string[],
+      // If specific contacts are selected, don't use segmentTag.
+      segmentTag: selectedContactIds.size > 0 ? undefined : (segmentTag === "All Contacts" ? undefined : segmentTag),
+      // Pass the specific emails as the segment array
+      segment: Array.from(selectedContactIds).map(id => contacts.find(c => c.id === id)?.email).filter(Boolean) as string[],
       abTest,
       followUpEnabled,
       followUpDays: followUpEnabled ? followUpDays : undefined,
@@ -323,10 +337,10 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
                   {CONTACT_TAGS.map(tag => (
                     <button
                       key={tag}
-                      onClick={() => setSegmentTag(tag)}
+                      onClick={() => { setSegmentTag(tag); setSelectedContactIds(new Set()); }}
                       className={[
                         "px-3 py-1 rounded-full text-xs font-medium border transition-colors",
-                        segmentTag === tag
+                        segmentTag === tag && selectedContactIds.size === 0
                           ? "bg-accent border-accent text-white"
                           : "border-white/12 text-white/50 hover:border-white/25 hover:text-white/80"
                       ].join(" ")}
@@ -334,6 +348,40 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
                       {tag} <span className="opacity-50">({segmentCount(tag)})</span>
                     </button>
                   ))}
+                </div>
+
+                <div className="mt-4">
+                  <label className="text-[11px] text-white/50 uppercase tracking-wide font-medium flex justify-between">
+                    <span>Or Select Specific Users</span>
+                    {selectedContactIds.size > 0 && (
+                      <button type="button" onClick={() => setSelectedContactIds(new Set())} className="text-accent hover:text-accent-light normal-case">Clear</button>
+                    )}
+                  </label>
+                  <div className="mt-2 max-h-32 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-1 custom-scrollbar">
+                    {contacts.map(c => {
+                      if (c.unsubscribed) return null;
+                      const isSelected = selectedContactIds.has(c.id);
+                      return (
+                        <button
+                          type="button"
+                          key={c.id}
+                          onClick={() => {
+                            const next = new Set(selectedContactIds);
+                            if (isSelected) next.delete(c.id);
+                            else next.add(c.id);
+                            setSelectedContactIds(next);
+                          }}
+                          className={`w-full text-left flex items-center justify-between px-3 py-2 rounded text-[11px] transition-colors ${isSelected ? "bg-accent/20 text-accent-light" : "text-white/60 hover:bg-white/5 hover:text-white"}`}
+                        >
+                          <span className="truncate pr-2">{c.name} ({c.email})</span>
+                          {isSelected && <span className="text-[10px]">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedContactIds.size > 0 && (
+                    <p className="text-[10px] text-accent-light mt-1">Sending only to {selectedContactIds.size} selected user(s). Segment tag will be ignored.</p>
+                  )}
                 </div>
               </div>
 
