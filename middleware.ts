@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/unsubscribe") ||
     pathname.startsWith("/api/track") ||
     pathname.startsWith("/api/optouts") || // Opt-outs from the unsubscribe page
+    pathname.startsWith("/api/hargrove-webhook") || // Hargrove CRM webhook — validates own key
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico";
 

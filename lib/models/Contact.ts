@@ -14,6 +14,8 @@ export interface IContact extends Document {
   alertMinBeds?: number;
   bounced?: boolean;
   lastContactedAt?: Date;
+  hargrove_synced?: boolean;
+  hargrove_synced_at?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +35,9 @@ const ContactSchema = new Schema<IContact>(
     alertMinBeds: { type: Number },
     bounced: { type: Boolean, default: false },
     lastContactedAt: { type: Date },
+    // Hargrove CRM integration fields
+    hargrove_synced: { type: Boolean, default: false },
+    hargrove_synced_at: { type: Date },
   },
   { timestamps: true }
 );

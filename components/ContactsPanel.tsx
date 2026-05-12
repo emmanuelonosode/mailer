@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import Papa from "papaparse";
 import type { Contact } from "@/types/email";
 import { CONTACT_TAGS } from "@/types/email";
+import HargroveSync from "@/components/HargroveSync";
 
 interface ContactsPanelProps {
   contacts: Contact[];
@@ -36,6 +37,7 @@ export default function ContactsPanel({ contacts, onContactsChange, optOuts }: C
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [showHargroveSync, setShowHargroveSync] = useState(false);
   const csvRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string, ok = true) => {
@@ -213,6 +215,15 @@ export default function ContactsPanel({ contacts, onContactsChange, optOuts }: C
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => setShowHargroveSync((v) => !v)}
+              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs transition-colors", showHargroveSync ? "bg-blue-500/20 border-blue-500/30 text-blue-300" : "border-white/12 text-white/50 hover:text-white hover:border-white/25"].join(" ")}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              </svg>
+              Hargrove CRM
+            </button>
+            <button
               onClick={() => csvRef.current?.click()}
               disabled={importing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-white/12 text-white/50 hover:text-white hover:border-white/25 text-xs transition-colors disabled:opacity-50"
@@ -228,6 +239,13 @@ export default function ContactsPanel({ contacts, onContactsChange, optOuts }: C
             </button>
           </div>
         </div>
+
+        {/* Hargrove CRM Sync panel */}
+        {showHargroveSync && (
+          <div className="mb-4">
+            <HargroveSync onSync={refreshContacts} />
+          </div>
+        )}
 
         {/* Search + Tag filter */}
         <div className="flex items-center gap-3 flex-wrap">

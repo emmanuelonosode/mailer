@@ -46,6 +46,25 @@ export async function GET(request: Request) {
         const inc = type === "open" ? { openCount: 1 } : { clickCount: 1 };
         await Campaign.findByIdAndUpdate(campaignId, { $inc: inc });
       }
+
+      // ── Bi-directional sync: forward event to Hargrove CRM ──────────────
+      const hargroveUrl = process.env.HARGROVE_API_URL;
+      const hargroveKey = process.env.HARGROVE_SYNC_KEY;
+      if (hargroveUrl && hargroveKey && recipientEmail) {
+        // Fire-and-forget: don't await, never block the pixel
+        fetch(`${hargroveUrl.replace(/\/$/, "")}/api/v1/mailer/webhook/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Mailer-Key": hargroveKey },
+          body: JSON.stringify({
+            event: type === "open" ? "email_opened" : "link_clicked",
+            email: recipientEmail,
+            campaignId: campaignId ?? "",
+            url: targetUrl ? decodeURIComponent(targetUrl) : "",
+            timestamp: new Date().toISOString(),
+          }),
+          signal: AbortSignal.timeout(5_000),
+        }).catch(() => { /* silent — tracking must never fail */ });
+      }
     } catch {
       // Tracking failure must never break the email experience
     }
