@@ -6,6 +6,7 @@ import type { Contact, SendLogEntry } from "@/types/email";
 import { CONTACT_TAGS } from "@/types/email";
 import { wrapWithBrandTemplate } from "@/lib/emailTemplate";
 import { injectTracking } from "@/lib/tracking";
+import { buildSinglePropertyHtml, buildMultiPropertyHtml } from "@/lib/propertyEmail";
 
 interface ListingsPanelProps {
   contacts: Contact[];
@@ -24,7 +25,9 @@ interface PropertySlot {
   error?: string;
 }
 
-function buildShowcaseHtml(properties: FetchedProperty[], title: string): string {
+// Removed local buildShowcaseHtml — now using lib/propertyEmail.ts
+
+function _unused(properties: FetchedProperty[], title: string): string {
   const intro = `<p style="font-size:15px;color:#374151;margin:0 0 24px;">We found some great properties that match your criteria. Take a look at the latest available homes below.</p>`;
 
   const cards = properties.map((property) => {
@@ -186,6 +189,13 @@ export default function ListingsPanel({
   const [customSubject, setCustomSubject] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<{ sent: number; total: number } | null>(null);
+  // Filters
+  const [minBeds, setMinBeds] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [propType, setPropType] = useState<"" | "rent" | "buy">("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc" | "beds">("default");
 
   const updateSlot = useCallback((url: string, patch: Partial<PropertySlot>) => {
     setSlots((prev) => prev.map((slot) => (slot.url === url ? { ...slot, ...patch } : slot)));
@@ -199,7 +209,12 @@ export default function ListingsPanel({
     setHasSearched(true);
 
     try {
-      const res = await fetch(`/api/search-properties?city=${encodeURIComponent(cityInput.trim())}`);
+      const params = new URLSearchParams({ city: cityInput.trim() });
+      if (minBeds) params.set("minBeds", minBeds);
+      if (minPrice) params.set("minPrice", minPrice);
+      if (maxPrice) params.set("maxPrice", maxPrice);
+      if (propType) params.set("type", propType);
+      const res = await fetch(`/api/search-properties?${params.toString()}`);
       const data = (await res.json()) as { urls?: string[]; error?: string };
 
       if (!res.ok || data.error || !data.urls?.length) {
@@ -252,9 +267,22 @@ export default function ListingsPanel({
     setSelectedUrls(new Set(done));
   }
 
+  const sortedSlots = [...slots].sort((a, b) => {
+    if (sortBy === "price_asc") return Number(a.data?.price ?? 9e9) - Number(b.data?.price ?? 9e9);
+    if (sortBy === "price_desc") return Number(b.data?.price ?? 0) - Number(a.data?.price ?? 0);
+    if (sortBy === "beds") return Number(b.data?.beds ?? 0) - Number(a.data?.beds ?? 0);
+    return 0;
+  });
+
   const selectedProperties = slots
     .filter((slot) => slot.status === "done" && slot.data && selectedUrls.has(slot.url))
     .map((slot) => slot.data!);
+
+  // Filter loaded slots by client-side min beds if set
+  const visibleSlots = sortedSlots.filter((slot) => {
+    if (!minBeds || !slot.data) return true;
+    return Number(slot.data.beds) >= Number(minBeds);
+  });
 
   const recipients = contacts.filter((contact) => {
     if (contact.unsubscribed || optOuts.includes(contact.email.toLowerCase())) return false;
@@ -285,11 +313,14 @@ export default function ListingsPanel({
     setSendProgress({ sent: 0, total: recipients.length });
     let sent = 0;
     const errors: string[] = [];
-    const bodyHtml = buildShowcaseHtml(selectedProperties, effectiveSubject);
 
     for (let i = 0; i < recipients.length; i++) {
       const contact = recipients[i];
       const firstName = contact.name?.split(" ")[0] || contact.email.split("@")[0];
+      // Use cinematic single-property email when only 1 listing selected
+      const bodyHtml = selectedProperties.length === 1
+        ? buildSinglePropertyHtml(selectedProperties[0], firstName)
+        : buildMultiPropertyHtml(selectedProperties, effectiveSubject);
       const personalizedBody = bodyHtml
         .replace(/{{first_name}}/gi, firstName)
         .replace(/{{name}}/gi, contact.name || firstName);
@@ -351,29 +382,64 @@ export default function ListingsPanel({
           <h1 className="text-xl font-semibold tracking-tight text-white">Property Discovery</h1>
           <p className="mt-0.5 text-xs text-white/35">Search haskerrealtygroup.com by city and launch campaigns from the results.</p>
 
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input
                 type="text"
                 value={cityInput}
-                onChange={(event) => setCityInput(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && !isSearching && handleSearch()}
-                placeholder="Enter city and state - e.g. Houston, TX"
-                className="w-full rounded-lg border border-white/12 bg-white/5 py-2.5 pl-10 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 hover:border-white/20 focus:border-accent/60"
+                onChange={(e) => setCityInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !isSearching && handleSearch()}
+                placeholder="City (e.g. Houston, TX) or paste a property URL"
+                className="w-full rounded-lg border border-white/12 bg-white/5 py-2.5 pl-9 pr-4 text-sm text-white outline-none transition-colors placeholder:text-white/25 hover:border-white/20 focus:border-accent/60"
               />
             </div>
-            <button
-              onClick={handleSearch}
-              disabled={!cityInput.trim() || isSearching}
-              className="flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/85 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {isSearching ? "Searching..." : "Search Listings"}
+            <button onClick={() => setShowFilters(v => !v)} className={["flex items-center gap-1.5 rounded-lg border px-4 py-2.5 text-sm transition-colors", showFilters ? "border-accent/40 bg-accent/10 text-accent-light" : "border-white/12 text-white/50 hover:text-white"].join(" ")}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              Filters{(minBeds || minPrice || maxPrice || propType) ? " ●" : ""}
+            </button>
+            <button onClick={handleSearch} disabled={!cityInput.trim() || isSearching} className="flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/85 disabled:cursor-not-allowed disabled:opacity-40">
+              {isSearching ? "Searching…" : "Search"}
             </button>
           </div>
+
+          {/* Filter bar */}
+          {showFilters && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-white/3 px-4 py-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Type</label>
+                <div className="flex gap-1.5">
+                  {([["", "Any"], ["rent", "Rent"], ["buy", "Buy"]] as ["" | "rent" | "buy", string][]).map(([v, label]) => (
+                    <button key={v} onClick={() => setPropType(v)} className={["rounded-md border px-2.5 py-1 text-[11px] transition-colors", propType === v ? "border-accent/50 bg-accent/20 text-accent-light" : "border-white/10 text-white/40 hover:text-white"].join(" ")}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Min Beds</label>
+                <select value={minBeds} onChange={e => setMinBeds(e.target.value)} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none">
+                  {["", "1", "2", "3", "4", "5"].map(v => <option key={v} value={v} className="bg-[#0a1929]">{v || "Any"}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Min Price</label>
+                <input type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} placeholder="$0" className="w-24 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none placeholder:text-white/20" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Max Price</label>
+                <input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="No limit" className="w-24 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none placeholder:text-white/20" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Sort</label>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)} className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white outline-none">
+                  <option value="default" className="bg-[#0a1929]">Default</option>
+                  <option value="price_asc" className="bg-[#0a1929]">Price: Low → High</option>
+                  <option value="price_desc" className="bg-[#0a1929]">Price: High → Low</option>
+                  <option value="beds" className="bg-[#0a1929]">Most Beds</option>
+                </select>
+              </div>
+              <button onClick={() => { setMinBeds(""); setMinPrice(""); setMaxPrice(""); setPropType(""); setSortBy("default"); }} className="ml-auto text-[10px] text-white/30 hover:text-white/60 transition-colors">Reset</button>
+            </div>
+          )}
         </div>
 
         <div className="overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
@@ -397,30 +463,26 @@ export default function ListingsPanel({
             <>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-white/60">
-                  {doneCount} properties loaded
-                  {loadingCount > 0 && <span className="ml-1 text-white/30">| {loadingCount} loading...</span>}
+                  {doneCount} of {slots.length} properties loaded
+                  {loadingCount > 0 && <span className="ml-1 text-white/30">({loadingCount} loading…)</span>}
+                  {maxPrice || minPrice || minBeds ? <span className="ml-2 text-[10px] text-accent-light/70">filtered</span> : ""}
                 </p>
                 <div className="flex items-center gap-3">
-                  {selectedUrls.size > 0 && (
-                    <span className="text-xs font-semibold text-accent-light">{selectedUrls.size} selected</span>
-                  )}
-                  <button onClick={selectAll} className="text-xs text-white/40 transition-colors hover:text-white">
-                    Select All
-                  </button>
-                  <button onClick={() => setSelectedUrls(new Set())} className="text-xs text-white/30 transition-colors hover:text-white/60">
-                    Clear
-                  </button>
+                  {selectedUrls.size > 0 && <span className="text-xs font-semibold text-accent-light">{selectedUrls.size} selected</span>}
+                  <button onClick={selectAll} className="text-xs text-white/40 transition-colors hover:text-white">Select All</button>
+                  <button onClick={() => setSelectedUrls(new Set())} className="text-xs text-white/30 transition-colors hover:text-white/60">Clear</button>
                 </div>
               </div>
 
+              {visibleSlots.length === 0 && doneCount > 0 && (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-white/8 bg-white/3">
+                  <p className="text-sm text-white/30">No loaded properties match your filters. Try widening the criteria.</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                {slots.map((slot) => (
-                  <PropertyCard
-                    key={slot.url}
-                    slot={slot}
-                    selected={selectedUrls.has(slot.url)}
-                    onToggle={() => toggleSelect(slot.url)}
-                  />
+                {visibleSlots.map((slot) => (
+                  <PropertyCard key={slot.url} slot={slot} selected={selectedUrls.has(slot.url)} onToggle={() => toggleSelect(slot.url)} />
                 ))}
               </div>
             </>
@@ -434,6 +496,7 @@ export default function ListingsPanel({
             <p className="text-sm font-semibold text-white">Campaign Builder</p>
             <p className="mt-0.5 text-[10px] text-white/35">
               {selectedProperties.length} {selectedProperties.length === 1 ? "property" : "properties"} selected
+              {selectedProperties.length === 1 && <span className="ml-1 text-emerald-400/70">· Single-property email ✓</span>}
             </p>
           </div>
 

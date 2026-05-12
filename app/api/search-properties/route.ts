@@ -20,32 +20,23 @@ async function fetchHtml(url: string, timeout = 12_000): Promise<string | null> 
 function extractPropertyPaths(html: string): string[] {
   const $ = load(html);
   const found = new Set<string>();
-
   $("a[href]").each((_, el) => {
     const href = $(el).attr("href") ?? "";
-    // Match /properties/slug or full URL
     const clean = href.replace(HOST, "");
-    if (/^\/properties\/[a-z0-9][a-z0-9-]{3,}$/.test(clean)) {
-      found.add(clean);
-    }
+    if (/^\/properties\/[a-z0-9][a-z0-9-]{2,}$/.test(clean)) found.add(clean);
   });
-
-  // Also scan raw HTML for property slugs not in anchor tags
-  const rawMatches = html.match(/\/properties\/[a-z0-9][a-z0-9-]{3,}(?=["'\s>])/g) ?? [];
+  const rawMatches = html.match(/\/properties\/[a-z0-9][a-z0-9-]{2,}(?=["'\s>])/g) ?? [];
   rawMatches.forEach((p) => {
     const clean = p.trim();
-    if (/^\/properties\/[a-z0-9][a-z0-9-]{3,}$/.test(clean)) found.add(clean);
+    if (/^\/properties\/[a-z0-9][a-z0-9-]{2,}$/.test(clean)) found.add(clean);
   });
-
   return Array.from(found);
 }
 
-function normalizeQuery(city: string): { slug: string; words: string[] } {
+function normalizeQuery(city: string) {
   const lower = city.toLowerCase().trim();
-  // "Houston, TX" → "houston"  "austin tx" → "austin"
   const words = lower.replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
-  const slug = words.join("-");
-  return { slug, words };
+  return { slug: words.join("-"), words };
 }
 
 function filterByCity(paths: string[], words: string[]): string[] {
@@ -56,42 +47,51 @@ function filterByCity(paths: string[], words: string[]): string[] {
   });
 }
 
-function removeDuplicatePaths(paths: string[]): string[] {
-  return Array.from(new Set(paths));
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const city = (searchParams.get("city") ?? searchParams.get("q") ?? "").trim();
+  const minBeds = searchParams.get("minBeds") ?? "";
+  const maxPrice = searchParams.get("maxPrice") ?? "";
+  const minPrice = searchParams.get("minPrice") ?? "";
+  const propType = searchParams.get("type") ?? ""; // rent | buy | ""
 
   if (!city) {
     return NextResponse.json({ error: "Provide ?city= parameter" }, { status: 400 });
   }
 
+  // Direct URL paste — user pasted a property URL, just return it
+  if (city.startsWith("http") && city.includes(HOST) && city.includes("/properties/")) {
+    return NextResponse.json({ urls: [city.split("?")[0]], query: city, found: 1, direct: true });
+  }
+
   const { slug, words } = normalizeQuery(city);
   const allPaths: string[] = [];
 
-  // Strategy 1: Direct search query variations
+  // Build query params for the Hargrove site search
+  const siteParams = new URLSearchParams();
+  if (city) siteParams.set("search", city);
+  if (minBeds) siteParams.set("beds", minBeds);
+  if (maxPrice) siteParams.set("max_price", maxPrice);
+  if (minPrice) siteParams.set("min_price", minPrice);
+  if (propType) siteParams.set("type", propType);
+
+  // Strategy 1: Search with filters
   const searchUrls = [
-    `${HOST}/properties?search=${encodeURIComponent(city)}`,
-    `${HOST}/properties?city=${encodeURIComponent(city)}`,
-    `${HOST}/properties?location=${encodeURIComponent(city)}`,
-    `${HOST}/homes-for-rent?search=${encodeURIComponent(city)}`,
+    `${HOST}/properties?${siteParams.toString()}`,
+    `${HOST}/properties?city=${encodeURIComponent(city)}&${siteParams.toString()}`,
+    `${HOST}/homes-for-${propType || "rent"}?${siteParams.toString()}`,
     `${HOST}/search?q=${encodeURIComponent(city)}`,
   ];
 
   for (const url of searchUrls) {
-    const html = await fetchHtml(url, 8_000);
+    const html = await fetchHtml(url, 10_000);
     if (html) {
       const paths = extractPropertyPaths(html);
-      if (paths.length > 0) {
-        allPaths.push(...paths);
-        break;
-      }
+      if (paths.length > 0) { allPaths.push(...paths); break; }
     }
   }
 
-  // Strategy 2: Main properties listing page (all properties, then filter)
+  // Strategy 2: Main listings page filtered
   if (allPaths.length === 0) {
     const html = await fetchHtml(`${HOST}/properties`);
     if (html) {
@@ -100,14 +100,9 @@ export async function GET(request: Request) {
     }
   }
 
-  // Strategy 3: City-slug URL patterns used by Invitation Homes-style sites
+  // Strategy 3: City slug URLs
   if (allPaths.length === 0) {
-    const citySlugUrls = [
-      `${HOST}/homes-for-rent/${slug}`,
-      `${HOST}/rentals/${slug}`,
-      `${HOST}/properties/${slug}`,
-    ];
-    for (const url of citySlugUrls) {
+    for (const url of [`${HOST}/homes-for-rent/${slug}`, `${HOST}/rentals/${slug}`, `${HOST}/properties/${slug}`]) {
       const html = await fetchHtml(url, 8_000);
       if (html) {
         const paths = extractPropertyPaths(html);
@@ -116,27 +111,23 @@ export async function GET(request: Request) {
     }
   }
 
-  // Strategy 4: Sitemap.xml fallback
+  // Strategy 4: Sitemap fallback
   if (allPaths.length === 0) {
     for (const sitemapUrl of [`${HOST}/sitemap.xml`, `${HOST}/sitemap_index.xml`]) {
       const xml = await fetchHtml(sitemapUrl, 10_000);
       if (xml) {
-        const matches = xml.match(/https:\/\/haskerrealtygroup\.com\/properties\/[a-z0-9][a-z0-9-]{3,}/g) ?? [];
+        const matches = xml.match(/https:\/\/haskerrealtygroup\.com\/properties\/[a-z0-9][a-z0-9-]{2,}/g) ?? [];
         const paths = [...new Set(matches)].map((u) => u.replace(HOST, ""));
         const filtered = filterByCity(paths, words);
         if (filtered.length > 0) { allPaths.push(...filtered); break; }
-        if (paths.length > 0 && words.length === 0) { allPaths.push(...paths); break; }
+        if (paths.length > 0) { allPaths.push(...paths); break; }
       }
     }
   }
 
-  const unique = removeDuplicatePaths(allPaths);
+  const unique = Array.from(new Set(allPaths));
   const cityFiltered = filterByCity(unique, words);
   const final = (cityFiltered.length > 0 ? cityFiltered : unique).slice(0, 24);
 
-  return NextResponse.json({
-    urls: final.map((p) => HOST + p),
-    query: city,
-    found: final.length,
-  });
+  return NextResponse.json({ urls: final.map((p) => HOST + p), query: city, found: final.length });
 }
