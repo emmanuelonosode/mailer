@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/fire-scheduled", "schedule": "* * * * *" },
+    { "path": "/api/cron/fire-sequences",  "schedule": "* * * * *" }
+  ]
+}

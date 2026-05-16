@@ -49,7 +49,7 @@ interface ControlPanelProps {
 
 function SectionHeading({ title }: { title: string }) {
   return (
-    <p className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-accent-light/50 uppercase">
+    <p className="mb-3 text-[11px] font-semibold text-white/35 tracking-[0.12em] uppercase">
       {title}
     </p>
   );
@@ -71,7 +71,7 @@ function IconButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="relative flex h-8 w-8 items-center justify-center rounded-md text-white/35 transition-colors hover:bg-white/8 hover:text-white"
+      className="relative flex h-8 w-8 items-center justify-center rounded-[8px] text-white/40 transition-all duration-150 hover:bg-white/[0.07] hover:text-white active:scale-95"
     >
       {children}
       {!!badge && badge > 0 && (
@@ -86,12 +86,12 @@ function IconButton({
 function ToolButton({
   onClick,
   title,
-  symbol,
+  icon,
   label,
 }: {
   onClick: () => void;
   title: string;
-  symbol: string;
+  icon: React.ReactNode;
   label: string;
 }) {
   return (
@@ -99,10 +99,10 @@ function ToolButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="group flex flex-1 flex-col items-center gap-1 rounded-lg border border-white/8 px-2 py-2.5 transition-colors hover:border-accent/40 hover:bg-accent/6"
+      className="group flex flex-1 flex-col items-center gap-1.5 rounded-[10px] border border-white/[0.07] bg-white/[0.02] px-2 py-3 transition-all duration-150 hover:border-accent/30 hover:bg-accent/[0.07] active:scale-95"
     >
-      <span className="text-sm font-semibold leading-none text-white/75">{symbol}</span>
-      <span className="text-[9px] font-semibold tracking-widest text-white/40 uppercase transition-colors group-hover:text-white/70">
+      <span className="text-white/55 transition-colors group-hover:text-white/90">{icon}</span>
+      <span className="text-[9px] font-medium tracking-wide text-white/35 uppercase transition-colors group-hover:text-white/65">
         {label}
       </span>
     </button>
@@ -151,24 +151,19 @@ export default function ControlPanel({
   onToggleMobilePreview,
 }: ControlPanelProps) {
   return (
-    <aside className="flex min-h-0 w-full flex-col overflow-hidden border-b border-white/8 bg-navy lg:h-full lg:max-w-[32rem] lg:border-b-0 lg:border-r">
-      <div className="flex shrink-0 items-start gap-3 border-b border-white/8 px-4 py-4 sm:px-5">
-        <div className="flex-1">
-          <p className="font-serif text-lg leading-tight tracking-[0.12em] text-white uppercase">
-            Hasker &amp; Co.
-          </p>
-          <p className="mt-0.5 text-[10px] tracking-[0.2em] text-white/30 uppercase">
-            Email Campaign Sender
-          </p>
-        </div>
+    <aside className="flex min-h-0 w-full flex-col overflow-hidden border-b border-white/[0.07] bg-navy lg:h-full lg:max-w-[32rem] lg:border-b-0 lg:border-r">
+      <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] px-4 py-3 sm:px-5">
+        <p className="flex-1 text-[11px] font-semibold text-white/40 tracking-[0.12em] uppercase">
+          Compose
+        </p>
 
-        <div className="flex flex-wrap items-center justify-end gap-1">
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={onToggleMobilePreview}
-            className="rounded-md px-2 py-1 text-[10px] font-semibold tracking-widest text-white/40 uppercase transition-colors hover:bg-white/8 hover:text-white lg:hidden"
+            className="rounded-[7px] px-2.5 py-1.5 text-[10px] font-medium text-white/40 uppercase tracking-wide transition-all hover:bg-white/[0.07] hover:text-white/80 active:scale-95 lg:hidden"
           >
-            {mobilePreviewOpen ? "Hide Preview" : "Show Preview"}
+            {mobilePreviewOpen ? "Hide" : "Preview"}
           </button>
 
           <button
@@ -176,10 +171,10 @@ export default function ControlPanel({
             onClick={onBulkModeToggle}
             title={bulkMode ? "Switch to single send" : "Switch to bulk send"}
             className={[
-              "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold tracking-widest uppercase transition-colors",
+              "flex items-center gap-1.5 rounded-[7px] px-2.5 py-1.5 text-[10px] font-semibold tracking-wide uppercase transition-all duration-150 active:scale-95",
               bulkMode
-                ? "bg-accent text-white"
-                : "text-white/30 hover:bg-white/8 hover:text-white",
+                ? "bg-accent/20 text-accent-light border border-accent/30"
+                : "text-white/35 hover:bg-white/[0.07] hover:text-white/80",
             ].join(" ")}
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -239,10 +234,30 @@ export default function ControlPanel({
         <section>
           <SectionHeading title="Marketing Tools" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <ToolButton onClick={onOpenCampaign} title="Load a pre-built campaign template" symbol="CM" label="Campaign" />
-            <ToolButton onClick={onOpenPropertyCard} title="Build and insert a property listing card" symbol="LC" label="Listing Card" />
-            <ToolButton onClick={onOpenUtmBuilder} title="Add UTM tracking parameters to all links" symbol="UTM" label="UTM Links" />
-            <ToolButton onClick={onOpenMultiListing} title="Feature multiple listings in a grid" symbol="ML" label="Showcase" />
+            <ToolButton
+              onClick={onOpenCampaign}
+              title="Load a pre-built campaign template"
+              label="Campaign"
+              icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
+            />
+            <ToolButton
+              onClick={onOpenPropertyCard}
+              title="Build and insert a property listing card"
+              label="Listing"
+              icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
+            />
+            <ToolButton
+              onClick={onOpenUtmBuilder}
+              title="Add UTM tracking parameters to all links"
+              label="UTM"
+              icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>}
+            />
+            <ToolButton
+              onClick={onOpenMultiListing}
+              title="Feature multiple listings in a grid"
+              label="Showcase"
+              icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>}
+            />
           </div>
         </section>
 
@@ -307,16 +322,16 @@ export default function ControlPanel({
       </div>
 
       {!bulkMode && (
-        <div className="flex shrink-0 flex-col gap-2 border-t border-white/8 px-4 py-4 sm:px-5">
+        <div className="flex shrink-0 flex-col gap-2 border-t border-white/[0.07] px-4 py-4 sm:px-5">
           <button
             type="button"
             onClick={onSend}
             disabled={isSending}
             className={[
-              "flex w-full items-center justify-center gap-2 rounded-md py-3 text-sm font-semibold tracking-wider uppercase transition-all duration-150",
+              "flex w-full items-center justify-center gap-2 rounded-[10px] py-3 text-[13px] font-semibold tracking-wide transition-all duration-150",
               isSending
-                ? "cursor-not-allowed bg-accent/30 text-white/30"
-                : "cursor-pointer bg-accent text-white hover:bg-accent/85 active:scale-[0.98]",
+                ? "cursor-not-allowed bg-accent/25 text-white/25"
+                : "cursor-pointer bg-accent text-white shadow-lg shadow-accent/25 hover:bg-[#1548c0] active:scale-[0.97]",
             ].join(" ")}
           >
             {isSending ? (
@@ -325,11 +340,11 @@ export default function ControlPanel({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v8z" />
                 </svg>
-                Sending...
+                Sending&hellip;
               </>
             ) : (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m22 2-7 20-4-9-9-4Z" />
                   <path d="M22 2 11 13" />
                 </svg>
@@ -342,7 +357,7 @@ export default function ControlPanel({
             type="button"
             onClick={onTestSend}
             disabled={isSending}
-            className="w-full rounded-md py-2 text-xs font-medium text-white/35 transition-colors hover:bg-white/5 hover:text-white/70 disabled:cursor-not-allowed disabled:opacity-30"
+            className="w-full rounded-[8px] py-2 text-[11px] font-medium text-white/30 transition-all hover:bg-white/[0.05] hover:text-white/60 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-25"
           >
             Send test to myself
           </button>

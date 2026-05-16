@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Contact } from "@/types/email";
+import { wrapWithBrandTemplate } from "@/lib/emailTemplate";
 
 interface Campaign {
   _id: string;
@@ -61,6 +62,12 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
   const [followUpDays, setFollowUpDays] = useState(3);
   const [followUpSubject, setFollowUpSubject] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+  function handlePreview() {
+    if (!html.trim() || !subject.trim()) return;
+    setPreviewHtml(wrapWithBrandTemplate(html, subject));
+  }
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -405,6 +412,7 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
             </div>
             <div className="px-6 py-4 border-t border-white/8 flex justify-end gap-2">
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-xs text-white/50 hover:text-white transition-colors">Cancel</button>
+              <button onClick={handlePreview} disabled={!html.trim() || !subject.trim()} className="px-4 py-2 rounded-lg text-xs text-white/50 border border-white/10 hover:text-white hover:border-white/30 disabled:opacity-30 transition-colors">Preview Email</button>
               <button onClick={saveCampaign} disabled={saving} className="px-4 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/80 disabled:opacity-50 transition-colors">
                 {saving ? "Saving…" : editCampaign ? "Update Campaign" : "Create Campaign"}
               </button>
@@ -451,6 +459,30 @@ export default function CampaignPanel({ contacts, senderEmail, senderName }: Cam
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Preview modal */}
+      {previewHtml && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+          <div className="bg-[#0f1623] border border-white/12 rounded-2xl w-full max-w-[660px] flex flex-col shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/8 flex items-center justify-between shrink-0">
+              <h3 className="text-sm font-semibold text-white">Email Preview</h3>
+              <button onClick={() => setPreviewHtml(null)} className="text-white/40 hover:text-white text-lg leading-none">×</button>
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: "70vh" }}>
+              <iframe
+                srcDoc={previewHtml}
+                width="600"
+                style={{ width: "600px", border: "none", display: "block", margin: "0 auto" }}
+                sandbox="allow-same-origin"
+                title="Email Preview"
+              />
+            </div>
+            <div className="px-6 py-4 border-t border-white/8 flex justify-end shrink-0">
+              <button onClick={() => setPreviewHtml(null)} className="px-4 py-2 rounded-lg text-xs text-white/50 hover:text-white transition-colors">Close</button>
             </div>
           </div>
         </div>

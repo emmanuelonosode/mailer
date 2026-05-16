@@ -1,20 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { DripSequence, DripStep, DripEnrollment, Contact, SendLogEntry } from "@/types/email";
 import { CONTACT_TAGS } from "@/types/email";
-import { wrapWithBrandTemplate } from "@/lib/emailTemplate";
 
 interface DripsPanelProps {
-  sequences: DripSequence[];
-  enrollments: DripEnrollment[];
   contacts: Contact[];
   optOuts: string[];
   senderName: string;
   senderEmail: string;
   appUrl: string;
-  onSequencesChange: (s: DripSequence[]) => void;
-  onEnrollmentsChange: (e: DripEnrollment[]) => void;
   onLogEntry: (e: SendLogEntry) => void;
   onShowToast: (type: "success" | "error", message: string) => void;
 }
@@ -23,49 +18,136 @@ function dayLabel(n: number) {
   return n === 0 ? "Immediately" : `Day ${n}`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeSequence(doc: any): DripSequence {
+  return {
+    id: doc._id?.toString() ?? doc.id,
+    name: doc.name,
+    description: doc.description ?? "",
+    steps: (doc.steps ?? []).map((s: { _id?: string; id?: string; dayOffset: number; subject: string; html?: string; htmlBody?: string }) => ({
+      id: s._id?.toString() ?? s.id ?? crypto.randomUUID(),
+      dayOffset: s.dayOffset,
+      subject: s.subject,
+      htmlBody: s.html ?? s.htmlBody ?? "",
+    })),
+    createdAt: doc.createdAt ?? new Date().toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeEnrollment(doc: any): DripEnrollment {
+  return {
+    id: doc._id?.toString() ?? doc.id,
+    sequenceId: doc.sequenceId,
+    contactEmail: doc.email ?? doc.contactEmail,
+    enrolledAt: doc.enrolledAt ?? new Date().toISOString(),
+    nextStepIndex: doc.completedSteps?.length ?? doc.nextStepIndex ?? 0,
+    completed: doc.active === false ? true : (doc.completed ?? false),
+    lastSentAt: doc.lastSentAt,
+  };
+}
+
 export default function DripsPanel({
-  sequences,
-  enrollments,
   contacts,
   optOuts,
-  senderName,
-  senderEmail,
-  appUrl,
-  onSequencesChange,
-  onEnrollmentsChange,
   onLogEntry,
   onShowToast,
 }: DripsPanelProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(sequences[0]?.id ?? null);
+  const [sequences, setSequences] = useState<DripSequence[]>([]);
+  const [enrollments, setEnrollments] = useState<DripEnrollment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingStep, setEditingStep] = useState<DripStep | null>(null);
   const [isNewStep, setIsNewStep] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [enrollTag, setEnrollTag] = useState("All");
   const [isFiring, setIsFiring] = useState(false);
 
-  const selected = sequences.find((sequence) => sequence.id === selectedId) ?? null;
+  const fetchAll = useCallback(async () => {
+    try {
+      const [seqRes, enrRes] = await Promise.all([
+        fetch("/api/sequences"),
+        fetch("/api/enrollments"),
+      ]);
+      const [seqData, enrData] = await Promise.all([seqRes.json(), enrRes.json()]);
+      const seqs: DripSequence[] = Array.isArray(seqData) ? seqData.map(normalizeSequence) : [];
+      const enrs: DripEnrollment[] = Array.isArray(enrData) ? enrData.map(normalizeEnrollment) : [];
+      setSequences(seqs);
+      setEnrollments(enrs);
+      if (seqs.length > 0 && !selectedId) setSelectedId(seqs[0].id);
+    } catch {
+      // keep existing state on error
+    } finally {
+      setLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function createSequence() {
-    const sequence: DripSequence = {
-      id: crypto.randomUUID(),
-      name: "New Sequence",
-      description: "",
-      steps: [],
-      createdAt: new Date().toISOString(),
-    };
-    onSequencesChange([...sequences, sequence]);
-    setSelectedId(sequence.id);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const refreshEnrollments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/enrollments");
+      const data = await res.json();
+      if (Array.isArray(data)) setEnrollments(data.map(normalizeEnrollment));
+    } catch {}
+  }, []);
+
+  const selected = sequences.find((s) => s.id === selectedId) ?? null;
+
+  async function createSequence() {
+    try {
+      const res = await fetch("/api/sequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "New Sequence", steps: [] }),
+      });
+      if (res.ok) {
+        const doc = await res.json();
+        const seq = normalizeSequence(doc);
+        setSequences((prev) => [seq, ...prev]);
+        setSelectedId(seq.id);
+      }
+    } catch {
+      onShowToast("error", "Failed to create sequence.");
+    }
   }
 
-  function updateSelected(patch: Partial<DripSequence>) {
-    onSequencesChange(sequences.map((sequence) => (sequence.id === selectedId ? { ...sequence, ...patch } : sequence)));
+  async function updateSelected(patch: Partial<DripSequence>) {
+    if (!selected) return;
+    const updated = { ...selected, ...patch };
+    // Optimistic local update
+    setSequences((prev) => prev.map((s) => (s.id === selected.id ? updated : s)));
+
+    const apiPatch: Record<string, unknown> = {};
+    if (patch.name !== undefined) apiPatch.name = patch.name;
+    if (patch.description !== undefined) apiPatch.description = patch.description;
+    if (patch.steps !== undefined) {
+      apiPatch.steps = patch.steps.map((s) => ({
+        dayOffset: s.dayOffset,
+        subject: s.subject,
+        html: s.htmlBody,
+      }));
+    }
+
+    try {
+      await fetch(`/api/sequences/${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPatch),
+      });
+    } catch {}
   }
 
-  function deleteSequence(id: string) {
-    onSequencesChange(sequences.filter((sequence) => sequence.id !== id));
-    onEnrollmentsChange(enrollments.filter((enrollment) => enrollment.sequenceId !== id));
-    if (selectedId === id) {
-      setSelectedId(sequences.find((sequence) => sequence.id !== id)?.id ?? null);
+  async function deleteSequence(id: string) {
+    try {
+      await fetch(`/api/sequences/${id}`, { method: "DELETE" });
+      setSequences((prev) => prev.filter((s) => s.id !== id));
+      setEnrollments((prev) => prev.filter((e) => e.sequenceId !== id));
+      if (selectedId === id) {
+        setSelectedId(sequences.find((s) => s.id !== id)?.id ?? null);
+      }
+    } catch {
+      onShowToast("error", "Failed to delete sequence.");
     }
   }
 
@@ -83,22 +165,24 @@ export default function DripsPanel({
     if (!editingStep || !selected) return;
     const steps = isNewStep
       ? [...selected.steps, editingStep].sort((a, b) => a.dayOffset - b.dayOffset)
-      : selected.steps.map((step) => (step.id === editingStep.id ? editingStep : step));
+      : selected.steps.map((s) => (s.id === editingStep.id ? editingStep : s));
     updateSelected({ steps });
     setEditingStep(null);
   }
 
   function deleteStep(stepId: string) {
     if (!selected) return;
-    updateSelected({ steps: selected.steps.filter((step) => step.id !== stepId) });
+    updateSelected({ steps: selected.steps.filter((s) => s.id !== stepId) });
   }
 
-  function enrollContacts() {
+  async function enrollContacts() {
     if (!selected) return;
-    const eligible = contacts.filter((contact) => {
-      if (contact.unsubscribed || optOuts.includes(contact.email.toLowerCase())) return false;
-      if (enrollTag !== "All" && !contact.tags.includes(enrollTag)) return false;
-      return !enrollments.some((enrollment) => enrollment.sequenceId === selected.id && enrollment.contactEmail === contact.email && !enrollment.completed);
+    const eligible = contacts.filter((c) => {
+      if (c.unsubscribed || optOuts.includes(c.email.toLowerCase())) return false;
+      if (enrollTag !== "All" && !c.tags.includes(enrollTag)) return false;
+      return !enrollments.some(
+        (e) => e.sequenceId === selected.id && e.contactEmail === c.email && !e.completed
+      );
     });
 
     if (eligible.length === 0) {
@@ -106,103 +190,60 @@ export default function DripsPanel({
       return;
     }
 
-    const now = new Date().toISOString();
-    const newEnrollments: DripEnrollment[] = eligible.map((contact) => ({
-      id: crypto.randomUUID(),
-      sequenceId: selected.id,
-      contactEmail: contact.email,
-      enrolledAt: now,
-      nextStepIndex: 0,
-      completed: false,
-    }));
+    try {
+      const payload = eligible.map((c) => ({ sequenceId: selected.id, email: c.email, contactId: c.id }));
+      const res = await fetch("/api/enrollments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        await refreshEnrollments();
+        setShowEnrollModal(false);
+        onShowToast("success", `Enrolled ${eligible.length} contacts in "${selected.name}".`);
+      } else {
+        onShowToast("error", "Failed to enroll contacts.");
+      }
+    } catch {
+      onShowToast("error", "Failed to enroll contacts.");
+    }
+  }
 
-    onEnrollmentsChange([...enrollments, ...newEnrollments]);
-    setShowEnrollModal(false);
-    onShowToast("success", `Enrolled ${eligible.length} contacts in "${selected.name}".`);
+  async function removeEnrollment(id: string) {
+    try {
+      await fetch(`/api/enrollments/${id}`, { method: "DELETE" });
+      setEnrollments((prev) => prev.filter((e) => e.id !== id));
+    } catch {
+      onShowToast("error", "Failed to remove enrollment.");
+    }
   }
 
   async function fireDueSteps() {
-    if (!senderEmail) {
-      onShowToast("error", "Set a sender email first.");
-      return;
-    }
-
     setIsFiring(true);
-    let fired = 0;
-    const updated = [...enrollments];
-
-    for (let index = 0; index < updated.length; index++) {
-      const enrollment = updated[index];
-      if (enrollment.completed) continue;
-
-      const sequence = sequences.find((item) => item.id === enrollment.sequenceId);
-      if (!sequence) continue;
-
-      const step = sequence.steps[enrollment.nextStepIndex];
-      if (!step) {
-        updated[index] = { ...enrollment, completed: true };
-        continue;
-      }
-
-      const dueAt = new Date(enrollment.enrolledAt);
-      dueAt.setDate(dueAt.getDate() + step.dayOffset);
-      if (new Date() < dueAt) continue;
-
-      const contact = contacts.find((item) => item.email === enrollment.contactEmail);
-      if (!contact || contact.unsubscribed || optOuts.includes(contact.email.toLowerCase())) {
-        updated[index] = { ...enrollment, completed: true };
-        continue;
-      }
-
-      const unsubUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(contact.email)}`;
-      const wrapped = wrapWithBrandTemplate(step.htmlBody, step.subject).replace("{{UNSUB_URL}}", unsubUrl);
-
-      try {
-        const response = await fetch("/api/send-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            senderName,
-            senderEmail,
-            recipientEmail: contact.email,
-            subject: step.subject,
-            htmlBody: wrapped,
-          }),
-        });
-        const data = await response.json();
-
-        onLogEntry({
-          id: crypto.randomUUID(),
-          timestamp: new Date().toISOString(),
-          to: contact.email,
-          subject: step.subject,
-          status: data.success ? "success" : "error",
-          ...(data.messageId && { messageId: data.messageId }),
-          ...(!data.success && { error: data.error }),
-        });
-
-        if (data.success) {
-          fired++;
-          const nextStepIndex = enrollment.nextStepIndex + 1;
-          updated[index] = {
-            ...enrollment,
-            nextStepIndex,
-            lastSentAt: new Date().toISOString(),
-            completed: nextStepIndex >= sequence.steps.length,
-          };
-        }
-      } catch {
-        continue;
-      }
+    try {
+      const res = await fetch("/api/cron/fire-sequences");
+      const data = await res.json();
+      await refreshEnrollments();
+      onShowToast(
+        "success",
+        data.fired > 0
+          ? `Fired ${data.fired} drip step${data.fired !== 1 ? "s" : ""}.`
+          : "No steps due right now."
+      );
+    } catch {
+      onShowToast("error", "Failed to fire due steps.");
+    } finally {
+      setIsFiring(false);
     }
-
-    onEnrollmentsChange(updated);
-    setIsFiring(false);
-    onShowToast("success", fired > 0 ? `Fired ${fired} drip step${fired !== 1 ? "s" : ""}.` : "No steps due right now.");
   }
 
-  const sequenceEnrollments = selected ? enrollments.filter((enrollment) => enrollment.sequenceId === selected.id) : [];
-  const activeEnrollments = sequenceEnrollments.filter((enrollment) => !enrollment.completed);
+  // Keep onLogEntry in scope (used if we re-add client-side logging later)
+  void onLogEntry;
+
+  const sequenceEnrollments = selected
+    ? enrollments.filter((e) => e.sequenceId === selected.id)
+    : [];
+  const activeEnrollments = sequenceEnrollments.filter((e) => !e.completed);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#0a1929] xl:flex-row">
@@ -213,11 +254,14 @@ export default function DripsPanel({
         </div>
 
         <div className="flex gap-2 overflow-x-auto px-4 py-3 xl:flex-col xl:px-0 xl:py-2">
-          {sequences.length === 0 && (
+          {loading && <p className="px-4 text-xs text-white/25">Loading...</p>}
+          {!loading && sequences.length === 0 && (
             <p className="px-4 text-xs text-white/25 xl:mt-8 xl:text-center">No sequences yet.</p>
           )}
           {sequences.map((sequence) => {
-            const count = enrollments.filter((enrollment) => enrollment.sequenceId === sequence.id && !enrollment.completed).length;
+            const count = enrollments.filter(
+              (e) => e.sequenceId === sequence.id && !e.completed
+            ).length;
             return (
               <button
                 key={sequence.id}
@@ -262,12 +306,12 @@ export default function DripsPanel({
               <div className="flex-1 sm:mr-4">
                 <input
                   value={selected.name}
-                  onChange={(event) => updateSelected({ name: event.target.value })}
+                  onChange={(e) => updateSelected({ name: e.target.value })}
                   className="w-full border-b border-transparent bg-transparent text-lg font-semibold text-white outline-none transition-colors hover:border-white/20 focus:border-accent/60"
                 />
                 <input
                   value={selected.description}
-                  onChange={(event) => updateSelected({ description: event.target.value })}
+                  onChange={(e) => updateSelected({ description: e.target.value })}
                   placeholder="Description (optional)"
                   className="mt-1 w-full border-b border-transparent bg-transparent text-xs text-white/40 outline-none transition-colors hover:border-white/10 focus:border-white/20"
                 />
@@ -296,10 +340,7 @@ export default function DripsPanel({
                     </div>
                     <div className="flex gap-3">
                       <button
-                        onClick={() => {
-                          setEditingStep(step);
-                          setIsNewStep(false);
-                        }}
+                        onClick={() => { setEditingStep(step); setIsNewStep(false); }}
                         className="text-xs text-white/30 transition-colors hover:text-white"
                       >
                         Edit
@@ -338,7 +379,7 @@ export default function DripsPanel({
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {sequenceEnrollments.slice(0, 20).map((enrollment) => {
-                    const contact = contacts.find((item) => item.email === enrollment.contactEmail);
+                    const contact = contacts.find((c) => c.email === enrollment.contactEmail);
                     const step = selected.steps[enrollment.nextStepIndex];
                     return (
                       <div key={enrollment.id} className="flex flex-col gap-3 rounded-lg bg-white/3 px-4 py-3 text-xs sm:flex-row sm:items-center">
@@ -354,7 +395,7 @@ export default function DripsPanel({
                           {enrollment.completed ? "Done" : `Step ${enrollment.nextStepIndex + 1}/${selected.steps.length}`}
                         </span>
                         <button
-                          onClick={() => onEnrollmentsChange(enrollments.filter((entry) => entry.id !== enrollment.id))}
+                          onClick={() => removeEnrollment(enrollment.id)}
                           className="text-xs text-white/20 transition-colors hover:text-red-400"
                         >
                           Remove
@@ -370,20 +411,18 @@ export default function DripsPanel({
       ) : (
         <div className="flex flex-1 items-center justify-center text-white/20">
           <div className="text-center">
-            <p className="mb-2 text-sm">No sequence selected</p>
-            <p className="text-xs">Create one to get started.</p>
+            <p className="mb-2 text-sm">{loading ? "Loading..." : "No sequence selected"}</p>
+            {!loading && <p className="text-xs">Create one to get started.</p>}
           </div>
         </div>
       )}
 
       {editingStep && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditingStep(null)}>
-          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-navy shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-lg rounded-xl border border-white/10 bg-navy shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
               <p className="text-sm font-semibold text-white">{isNewStep ? "Add Step" : "Edit Step"}</p>
-              <button onClick={() => setEditingStep(null)} className="text-xl leading-none text-white/30 transition-colors hover:text-white">
-                ×
-              </button>
+              <button onClick={() => setEditingStep(null)} className="text-xl leading-none text-white/30 transition-colors hover:text-white">×</button>
             </div>
             <div className="flex flex-col gap-4 px-6 py-5">
               <div>
@@ -392,7 +431,7 @@ export default function DripsPanel({
                   type="number"
                   min={0}
                   value={editingStep.dayOffset}
-                  onChange={(event) => setEditingStep({ ...editingStep, dayOffset: parseInt(event.target.value, 10) || 0 })}
+                  onChange={(e) => setEditingStep({ ...editingStep, dayOffset: parseInt(e.target.value, 10) || 0 })}
                   className="field-input w-32"
                 />
                 <p className="mt-1 text-[10px] text-white/25">0 = immediately upon enrollment</p>
@@ -401,7 +440,7 @@ export default function DripsPanel({
                 <label className="field-label">Subject</label>
                 <input
                   value={editingStep.subject}
-                  onChange={(event) => setEditingStep({ ...editingStep, subject: event.target.value })}
+                  onChange={(e) => setEditingStep({ ...editingStep, subject: e.target.value })}
                   className="field-input"
                   placeholder="Subject line..."
                 />
@@ -410,7 +449,7 @@ export default function DripsPanel({
                 <label className="field-label">Body (HTML)</label>
                 <textarea
                   value={editingStep.htmlBody}
-                  onChange={(event) => setEditingStep({ ...editingStep, htmlBody: event.target.value })}
+                  onChange={(e) => setEditingStep({ ...editingStep, htmlBody: e.target.value })}
                   className="field-input resize-none font-mono text-xs"
                   rows={8}
                   placeholder="<p>Hello {{first_name}},</p><p>...</p>"
@@ -419,9 +458,7 @@ export default function DripsPanel({
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-white/8 px-6 py-4">
-              <button onClick={() => setEditingStep(null)} className="px-4 py-2 text-xs text-white/40 transition-colors hover:text-white">
-                Cancel
-              </button>
+              <button onClick={() => setEditingStep(null)} className="px-4 py-2 text-xs text-white/40 transition-colors hover:text-white">Cancel</button>
               <button
                 onClick={saveStep}
                 disabled={!editingStep.subject.trim()}
@@ -436,12 +473,10 @@ export default function DripsPanel({
 
       {showEnrollModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowEnrollModal(false)}>
-          <div className="w-full max-w-sm rounded-xl border border-white/10 bg-navy shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-xl border border-white/10 bg-navy shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
               <p className="text-sm font-semibold text-white">Enroll Contacts</p>
-              <button onClick={() => setShowEnrollModal(false)} className="text-xl leading-none text-white/30 transition-colors hover:text-white">
-                ×
-              </button>
+              <button onClick={() => setShowEnrollModal(false)} className="text-xl leading-none text-white/30 transition-colors hover:text-white">×</button>
             </div>
             <div className="px-6 py-5">
               <p className="mb-2 field-label">Enroll which contacts?</p>
@@ -449,8 +484,8 @@ export default function DripsPanel({
                 {["All", ...CONTACT_TAGS].map((tag) => {
                   const count =
                     tag === "All"
-                      ? contacts.filter((contact) => !contact.unsubscribed).length
-                      : contacts.filter((contact) => contact.tags.includes(tag) && !contact.unsubscribed).length;
+                      ? contacts.filter((c) => !c.unsubscribed).length
+                      : contacts.filter((c) => c.tags.includes(tag) && !c.unsubscribed).length;
                   return (
                     <button
                       key={tag}
@@ -469,9 +504,7 @@ export default function DripsPanel({
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-white/8 px-6 py-4">
-              <button onClick={() => setShowEnrollModal(false)} className="px-4 py-2 text-xs text-white/40 hover:text-white">
-                Cancel
-              </button>
+              <button onClick={() => setShowEnrollModal(false)} className="px-4 py-2 text-xs text-white/40 hover:text-white">Cancel</button>
               <button
                 onClick={enrollContacts}
                 className="rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent/85"

@@ -12,7 +12,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/config") ||
     pathname.startsWith("/unsubscribe") ||
     pathname.startsWith("/api/track") ||
-    pathname.startsWith("/api/optouts") || // Opt-outs from the unsubscribe page
+    pathname.startsWith("/api/optouts") ||
+    pathname.startsWith("/api/cron/") || // Vercel cron jobs — secured by CRON_SECRET header
     pathname.startsWith("/api/hargrove-webhook") || // Hargrove CRM webhook — validates own key
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico";

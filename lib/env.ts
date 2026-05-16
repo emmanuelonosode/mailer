@@ -10,6 +10,7 @@ const REQUIRED_ENV_VARS = [
   "SMTP_HOST",
   "SMTP_USER",
   "SMTP_PASSWORD",
+  "CRON_SECRET",
 ];
 
 export function validateEnv() {

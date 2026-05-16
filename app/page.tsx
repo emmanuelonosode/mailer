@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import ControlPanel from "@/components/ControlPanel";
 import LivePreview from "@/components/LivePreview";
 import Toast from "@/components/Toast";
@@ -22,8 +22,8 @@ import { wrapWithBrandTemplate } from "@/lib/emailTemplate";
 import { injectTracking } from "@/lib/tracking";
 import type {
   SendEmailPayload, SendEmailResponse, ToastState, Attachment,
-  EmailTemplate, SendLogEntry, Contact, DripSequence,
-  DripEnrollment, ScheduledSend, TrackingEvent,
+  EmailTemplate, SendLogEntry, Contact,
+  ScheduledSend, TrackingEvent,
 } from "@/types/email";
 
 function isValidEmail(v: string) {
@@ -74,8 +74,6 @@ export default function Page() {
   const [sendLog, setSendLog] = useState<SendLogEntry[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [optOuts, setOptOuts] = useState<string[]>([]);
-  const [sequences, setSequences] = useState<DripSequence[]>([]);
-  const [enrollments, setEnrollments] = useState<DripEnrollment[]>([]);
   const [scheduledSends, setScheduledSends] = useState<ScheduledSend[]>([]);
   const [trackingEvents, setTrackingEvents] = useState<TrackingEvent[]>([]);
 
@@ -90,12 +88,21 @@ export default function Page() {
 
   // ── Load from API + localStorage on mount ────────────────────────────────
   useEffect(() => {
-    // Load templates from localStorage
+    // Load templates and send log from localStorage
     try { const v = localStorage.getItem("hasker_templates"); if (v) setTemplates(JSON.parse(v)); } catch {}
     try { const v = localStorage.getItem("hasker_sendlog"); if (v) setSendLog(JSON.parse(v)); } catch {}
-    try { const v = localStorage.getItem("hasker_sequences"); if (v) setSequences(JSON.parse(v)); } catch {}
-    try { const v = localStorage.getItem("hasker_enrollments"); if (v) setEnrollments(JSON.parse(v)); } catch {}
-    try { const v = localStorage.getItem("hasker_scheduled"); if (v) setScheduledSends(JSON.parse(v)); } catch {}
+    // Load scheduled sends from MongoDB API
+    fetch("/api/scheduled-sends")
+      .then(r => r.json())
+      .then((d: ScheduledSend[]) => {
+        if (Array.isArray(d)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setScheduledSends(d.map((s: any) => ({ ...s, id: s._id?.toString() ?? s.id })));
+        }
+      })
+      .catch(() => {
+        try { const v = localStorage.getItem("hasker_scheduled"); if (v) setScheduledSends(JSON.parse(v)); } catch {}
+      });
     // Check env SMTP config
     fetch("/api/config")
       .then(r => r.json())
@@ -134,9 +141,6 @@ export default function Page() {
 
   useEffect(() => { try { localStorage.setItem("hasker_templates", JSON.stringify(templates)); } catch {} }, [templates]);
   useEffect(() => { try { localStorage.setItem("hasker_sendlog", JSON.stringify(sendLog.slice(0, 500))); } catch {} }, [sendLog]);
-  useEffect(() => { try { localStorage.setItem("hasker_sequences", JSON.stringify(sequences)); } catch {} }, [sequences]);
-  useEffect(() => { try { localStorage.setItem("hasker_enrollments", JSON.stringify(enrollments)); } catch {} }, [enrollments]);
-  useEffect(() => { try { localStorage.setItem("hasker_scheduled", JSON.stringify(scheduledSends)); } catch {} }, [scheduledSends]);
 
   // ── Refresh contacts from API ─────────────────────────────────────────────
   const refreshContacts = useCallback(() => {
@@ -146,41 +150,6 @@ export default function Page() {
       .catch(() => {});
   }, []);
 
-  // ── Auto-fire scheduled sends ────────────────────────────────────────────
-  const schedulerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    async function checkScheduled() {
-      const now = new Date();
-      const due = scheduledSends.filter(s => s.status === "pending" && new Date(s.scheduledAt) <= now);
-      if (due.length === 0) return;
-
-      for (const s of due) {
-        for (const r of s.recipients) {
-          if (optOuts.includes(r.email.toLowerCase())) continue;
-          const unsubUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(r.email)}`;
-          let html = wrapWithBrandTemplate(s.htmlBody, s.subject).replace("{{UNSUB_URL}}", unsubUrl);
-          const sendId = crypto.randomUUID();
-          if (appUrl) html = injectTracking(html, sendId, r.email, appUrl);
-          try {
-            const res = await fetch("/api/send-email", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ senderName: s.senderName, senderEmail: s.senderEmail, recipientEmail: r.email, subject: s.subject, htmlBody: html }),
-            });
-            const data = await res.json();
-            addLogEntry({ id: sendId, timestamp: new Date().toISOString(), to: r.email, subject: s.subject, status: data.success ? "success" : "error", ...(!data.success && { error: data.error }) });
-          } catch {}
-        }
-        setScheduledSends(prev => prev.map(x => x.id === s.id ? { ...x, status: "sent", sentAt: new Date().toISOString() } : x));
-        showToast("success", `Scheduled send "${s.label}" fired.`);
-      }
-    }
-
-    checkScheduled();
-    schedulerRef.current = setInterval(checkScheduled, 60_000);
-    return () => { if (schedulerRef.current) clearInterval(schedulerRef.current); };
-  }, [scheduledSends, optOuts, appUrl]);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const wrappedHtml = useMemo(() => wrapWithBrandTemplate(htmlBody, subject), [htmlBody, subject]);
@@ -248,11 +217,33 @@ export default function Page() {
   }
 
   // ── Scheduler ────────────────────────────────────────────────────────────
-  function handleSchedule(s: ScheduledSend) {
-    setScheduledSends((prev) => [...prev, s]);
-    showToast("success", `Scheduled: "${s.label}"`);
+  async function handleSchedule(s: ScheduledSend) {
+    try {
+      const res = await fetch("/api/scheduled-sends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(s),
+      });
+      if (res.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const created: any = await res.json();
+        setScheduledSends((prev) => [...prev, { ...created, id: created._id?.toString() ?? created.id }]);
+        showToast("success", `Scheduled: "${s.label}"`);
+      } else {
+        showToast("error", "Failed to save scheduled send.");
+      }
+    } catch {
+      showToast("error", "Failed to save scheduled send.");
+    }
   }
-  function handleCancelScheduled(id: string) {
+  async function handleCancelScheduled(id: string) {
+    try {
+      await fetch(`/api/scheduled-sends/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+    } catch {}
     setScheduledSends((prev) => prev.map((s) => s.id === id ? { ...s, status: "cancelled" } : s));
   }
 
@@ -333,7 +324,7 @@ export default function Page() {
         />
 
         {activeSection === "compose" && (
-          <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
+          <div className="flex flex-1 min-h-0 flex-col lg:flex-row animate-fade-up">
             <ControlPanel
               smtpConfigured={smtpConfigured}
               // Sender
@@ -375,55 +366,61 @@ export default function Page() {
         )}
 
         {activeSection === "campaigns" && (
-          <CampaignPanel
-            contacts={contacts}
-            senderEmail={senderEmail}
-            senderName={senderName}
-          />
+          <div className="flex flex-1 min-h-0 animate-fade-up">
+            <CampaignPanel
+              contacts={contacts}
+              senderEmail={senderEmail}
+              senderName={senderName}
+            />
+          </div>
         )}
 
         {activeSection === "contacts" && (
-          <ContactsPanel
-            contacts={contacts}
-            onContactsChange={(c) => { setContacts(c); refreshContacts(); }}
-            optOuts={optOuts}
-          />
+          <div className="flex flex-1 min-h-0 animate-fade-up">
+            <ContactsPanel
+              contacts={contacts}
+              onContactsChange={(c) => { setContacts(c); refreshContacts(); }}
+              optOuts={optOuts}
+            />
+          </div>
         )}
 
         {activeSection === "analytics" && (
-          <AnalyticsPanel
-            sendLog={sendLog}
-            contacts={contacts}
-            trackingEvents={trackingEvents}
-          />
+          <div className="flex flex-1 min-h-0 animate-fade-up">
+            <AnalyticsPanel
+              sendLog={sendLog}
+              contacts={contacts}
+              trackingEvents={trackingEvents}
+            />
+          </div>
         )}
 
         {activeSection === "listings" && (
-          <ListingsPanel
-            contacts={contacts}
-            optOuts={optOuts}
-            senderName={senderName}
-            senderEmail={senderEmail}
-            appUrl={appUrl}
-            onLogEntry={addLogEntry}
-            onShowToast={showToast}
-          />
+          <div className="flex flex-1 min-h-0 animate-fade-up">
+            <ListingsPanel
+              contacts={contacts}
+              optOuts={optOuts}
+              senderName={senderName}
+              senderEmail={senderEmail}
+              appUrl={appUrl}
+              onLogEntry={addLogEntry}
+              onShowToast={showToast}
+            />
+          </div>
         )}
 
         {activeSection === "sequences" && (
-          <DripsPanel
-            sequences={sequences}
-            enrollments={enrollments}
-            contacts={contacts}
-            optOuts={optOuts}
-            senderName={senderName}
-            senderEmail={senderEmail}
-            appUrl={appUrl}
-            onSequencesChange={setSequences}
-            onEnrollmentsChange={setEnrollments}
-            onLogEntry={addLogEntry}
-            onShowToast={showToast}
-          />
+          <div className="flex flex-1 min-h-0 animate-fade-up">
+            <DripsPanel
+              contacts={contacts}
+              optOuts={optOuts}
+              senderName={senderName}
+              senderEmail={senderEmail}
+              appUrl={appUrl}
+              onLogEntry={addLogEntry}
+              onShowToast={showToast}
+            />
+          </div>
         )}
 
         {activeSection === "settings" && (
