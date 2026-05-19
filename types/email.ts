@@ -22,6 +22,7 @@ export interface SendEmailPayload {
   subject: string;
   htmlBody: string;
   attachments?: Attachment[];
+  isBulk?: boolean;
 }
 
 export interface SendEmailResponse {

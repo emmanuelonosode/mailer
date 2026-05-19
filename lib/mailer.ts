@@ -50,25 +50,20 @@ export async function sendEmail(options: MailOptions): Promise<{ messageId: stri
       contentType: a.contentType,
     })),
     headers: {
-      // Identification
-      "X-Mailer": "Hasker-Email-Platform/2.0",
-      "X-Entity-Ref-ID": options.campaignId ?? crypto.randomUUID(),
-      "X-Campaign-Source": "hasker-email-platform",
-
-      // Spam compliance — RFC 2369 List-Unsubscribe
-      "List-Unsubscribe": `<${unsubUrl}>, <mailto:unsubscribe@${domain}?subject=unsubscribe>`,
-      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-
-      // Bulk/marketing classification (reduces spam score when set properly)
-      ...(options.isBulk && { "Precedence": "bulk" }),
-
-      // Help mail clients identify the sending organization
-      "List-Id": `Hasker & Co. Realty Group <newsletter.${domain}>`,
-      "List-Owner": `<mailto:info@${domain}>`,
+      "MIME-Version": "1.0",
       "Sender": options.from,
 
-      // MIME compliance
-      "MIME-Version": "1.0",
+      // Bulk/campaign headers — omitted for personal 1:1 sends to avoid Promotions tab
+      ...(options.isBulk && {
+        "X-Mailer": "Hasker-Email-Platform/2.0",
+        "X-Entity-Ref-ID": options.campaignId ?? crypto.randomUUID(),
+        "X-Campaign-Source": "hasker-email-platform",
+        "Precedence": "bulk",
+        "List-Unsubscribe": `<${unsubUrl}>, <mailto:unsubscribe@${domain}?subject=unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        "List-Id": `Hasker & Co. Realty Group <newsletter.${domain}>`,
+        "List-Owner": `<mailto:info@${domain}>`,
+      }),
     },
   });
 

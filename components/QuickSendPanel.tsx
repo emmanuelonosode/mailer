@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import type { FetchedProperty } from "@/app/api/fetch-property/route";
 import type { Contact, SendLogEntry } from "@/types/email";
 import { wrapWithBrandTemplate } from "@/lib/emailTemplate";
-import { injectTracking } from "@/lib/tracking";
 import { buildSinglePropertyHtml } from "@/lib/propertyEmail";
 
 interface QuickSendPanelProps {
@@ -158,14 +157,13 @@ export default function QuickSendPanel({
       .replace(/\{\{first_name\}\}/gi, recipientFirstName)
       .replace(/\{\{name\}\}/gi, recipientName || recipientFirstName);
     const unsubUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
-    let finalHtml = wrapWithBrandTemplate(personalized, effectiveSubject).replace("{{UNSUB_URL}}", unsubUrl);
-    if (appUrl) finalHtml = injectTracking(finalHtml, sendId, recipientEmail, appUrl);
+    const finalHtml = wrapWithBrandTemplate(personalized, effectiveSubject).replace("{{UNSUB_URL}}", unsubUrl);
 
     try {
       const res = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ senderName, senderEmail, recipientEmail, subject: effectiveSubject, htmlBody: finalHtml }),
+        body: JSON.stringify({ senderName, senderEmail, recipientEmail, subject: effectiveSubject, htmlBody: finalHtml, isBulk: false }),
       });
       const data = await res.json();
       onLogEntry({

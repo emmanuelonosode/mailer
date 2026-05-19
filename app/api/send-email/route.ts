@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       text: plainText,
       attachments,
       listUnsubscribeUrl,
-      isBulk: true,
+      isBulk: body.isBulk ?? false,
     });
     return NextResponse.json<SendEmailResponse>({ success: true, messageId });
   } catch (err: unknown) {
