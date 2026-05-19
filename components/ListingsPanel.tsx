@@ -7,6 +7,7 @@ import { CONTACT_TAGS } from "@/types/email";
 import { wrapWithBrandTemplate } from "@/lib/emailTemplate";
 import { injectTracking } from "@/lib/tracking";
 import { buildSinglePropertyHtml, buildMultiPropertyHtml } from "@/lib/propertyEmail";
+import QuickSendPanel from "@/components/QuickSendPanel";
 
 interface ListingsPanelProps {
   contacts: Contact[];
@@ -180,6 +181,7 @@ export default function ListingsPanel({
   onLogEntry,
   onShowToast,
 }: ListingsPanelProps) {
+  const [activeTab, setActiveTab] = useState<"quick" | "campaign">("quick");
   const [cityInput, setCityInput] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [slots, setSlots] = useState<PropertySlot[]>([]);
@@ -384,11 +386,59 @@ export default function ListingsPanel({
   const loadingCount = slots.filter((slot) => slot.status === "loading" || slot.status === "pending").length;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#0a1929] xl:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col bg-[#07111f]">
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-white/[0.07] px-5 py-2.5">
+        <button
+          onClick={() => setActiveTab("quick")}
+          className={[
+            "flex items-center gap-2 rounded-[8px] px-3.5 py-1.5 text-[12px] font-semibold transition-all duration-150",
+            activeTab === "quick"
+              ? "bg-accent/[0.15] text-white"
+              : "text-white/35 hover:bg-white/[0.05] hover:text-white/70",
+          ].join(" ")}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>
+          </svg>
+          Quick Send
+        </button>
+        <button
+          onClick={() => setActiveTab("campaign")}
+          className={[
+            "flex items-center gap-2 rounded-[8px] px-3.5 py-1.5 text-[12px] font-semibold transition-all duration-150",
+            activeTab === "campaign"
+              ? "bg-accent/[0.15] text-white"
+              : "text-white/35 hover:bg-white/[0.05] hover:text-white/70",
+          ].join(" ")}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+          Campaign
+        </button>
+      </div>
+
+      {/* ── Quick Send tab ────────────────────────────────── */}
+      {activeTab === "quick" && (
+        <QuickSendPanel
+          contacts={contacts}
+          optOuts={optOuts}
+          senderName={senderName}
+          senderEmail={senderEmail}
+          appUrl={appUrl}
+          onLogEntry={onLogEntry}
+          onShowToast={onShowToast}
+        />
+      )}
+
+      {/* ── Campaign tab ─────────────────────────────────── */}
+      {activeTab === "campaign" && (
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
       <div className="min-h-0 flex-1">
-        <div className="border-b border-white/8 px-4 pb-5 pt-6 sm:px-6 lg:px-8">
-          <h1 className="text-xl font-semibold tracking-tight text-white">Property Discovery</h1>
-          <p className="mt-0.5 text-xs text-white/35">Search haskerrealtygroup.com by city and launch campaigns from the results.</p>
+        <div className="border-b border-white/[0.07] px-4 pb-5 pt-5 sm:px-6 lg:px-8">
+          <h1 className="text-[15px] font-semibold text-white">Property Campaign</h1>
+          <p className="mt-0.5 text-[12px] text-white/35">Search by city and blast a segment of your contacts.</p>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
@@ -630,6 +680,8 @@ export default function ListingsPanel({
             </p>
           </div>
         </div>
+      )}
+      </div>
       )}
     </div>
   );

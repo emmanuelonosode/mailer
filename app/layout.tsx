@@ -29,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${dmSans.variable} ${playfair.variable}`}>
-      <body className="bg-navy font-sans antialiased">{children}</body>
+      <body className="bg-[#07111f] font-sans antialiased">{children}</body>
     </html>
   );
 }

@@ -51,7 +51,7 @@ const NAV: Array<{ section: NavSection; label: string; icon: React.ReactNode }> 
   },
   {
     section: "sequences",
-    label: "Drip Sequences",
+    label: "Sequences",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="18" cy="18" r="3" />
@@ -63,7 +63,7 @@ const NAV: Array<{ section: NavSection; label: string; icon: React.ReactNode }> 
   },
   {
     section: "listings",
-    label: "Listings",
+    label: "Properties",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
